@@ -224,8 +224,14 @@ def get_current_user(cwd):
 def get_user_role(config, username):
     """Look up a user's role from team config.
 
-    Returns role name string, or "developer" as default.
+    Returns role name string. With no members configured at all (a solo
+    project, or no team.yaml) everyone is "lead" -- defaulting to
+    "developer" there denied the only user code-reviewer, spec-verifier,
+    integration-tester and devops. Once members are listed, unlisted users
+    get "developer".
     """
+    if not config.get("members"):
+        return "lead"
     if not username:
         return "developer"
 

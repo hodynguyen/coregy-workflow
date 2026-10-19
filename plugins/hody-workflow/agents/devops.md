@@ -24,7 +24,7 @@ Adapt approach based on profile:
 - If `devops.ci` is `github-actions` → Write `.github/workflows/*.yml`
 - If `devops.ci` is `gitlab-ci` → Write `.gitlab-ci.yml`
 - If `devops.ci` is `jenkins` → Write `Jenkinsfile`
-- If `devops.containerization` is `docker` → Optimize Dockerfiles, compose configs
+- If `devops.containerize` is `docker` → Optimize Dockerfiles, compose configs
 - If `devops.infra` is `terraform` → Write `.tf` files with proper state management
 - If `devops.infra` is `pulumi` → Write Pulumi programs in project language
 - If `backend.language` exists → Configure build/test steps for that language
@@ -52,15 +52,14 @@ Adapt approach based on profile:
 
 ## Knowledge Base Update
 
-When writing new sections to KB files, include YAML frontmatter at the top of each new entry:
+YAML frontmatter is only valid at the very top of a file. If the KB file you write to has
+none yet, add it there (`tags`, `created`, `author_agent: devops`, `status: active`). For each
+new section you append, put a one-line metadata comment directly under its heading instead —
+never a second `---` block mid-file (Markdown renders it as a heading and the index ignores it):
 
 ```markdown
----
-tags: [relevant, topic, tags]
-created: YYYY-MM-DD
-author_agent: devops
-status: active
----
+## <Section title>
+<!-- author_agent: devops | created: YYYY-MM-DD | tags: relevant, topic, tags -->
 ```
 
 After completing work:

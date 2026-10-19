@@ -11,6 +11,11 @@ import re
 import sys
 from datetime import datetime, timezone
 
+try:
+    from . import mini_yaml
+except ImportError:
+    import mini_yaml
+
 
 # All 9 agents in the workflow system
 ALL_AGENTS = [
@@ -72,14 +77,19 @@ def _is_template_only(filepath):
     except (OSError, IOError):
         return True
 
+    # Judge the body only: the templates ship `created: YYYY-MM-DD` in their
+    # frontmatter, which would otherwise mark a fully written file "template".
+    body = re.sub(r"\A---\s*\n.*?\n---\s*\n", "", content, count=1, flags=re.DOTALL)
+    body = re.sub(r"<!--.*?-->", "", body, flags=re.DOTALL)
+
     # Empty or very short files are template-only
-    stripped = content.strip()
+    stripped = body.strip()
     if len(stripped) < 50:
         return True
 
     # Check for template markers
     for marker in TEMPLATE_MARKERS:
-        if marker in content:
+        if marker in body:
             return True
 
     return False
@@ -315,26 +325,26 @@ def get_dependency_health(profile_path):
         return result
 
     try:
-        # Use PyYAML if available, otherwise basic parsing
-        try:
-            import yaml
-
-            with open(profile_path, "r") as f:
-                profile = yaml.safe_load(f)
-        except ImportError:
-            return result
+        # stdlib reader -- the PyYAML path silently returned zeros whenever
+        # PyYAML was not installed
+        with open(profile_path, "r") as f:
+            profile = mini_yaml.loads(f.read())
     except (OSError, IOError):
         return result
 
     if not isinstance(profile, dict):
         return result
 
-    # Look for deep_analysis section
+    # deep_analysis as written by detectors/deep_analysis.py: `outdated` and
+    # `security` are lists of entries, `dependency_count` the total.
     deep = profile.get("deep_analysis", {})
     if isinstance(deep, dict):
-        result["outdated_count"] = deep.get("outdated_deps", 0)
-        result["vulnerability_count"] = deep.get("vulnerabilities", 0)
-        result["total_deps"] = deep.get("total_deps", 0)
+        outdated = deep.get("outdated")
+        security = deep.get("security")
+        result["outdated_count"] = len(outdated) if isinstance(outdated, list) else 0
+        result["vulnerability_count"] = len(security) if isinstance(security, list) else 0
+        total = deep.get("dependency_count", 0)
+        result["total_deps"] = total if isinstance(total, int) else 0
 
     # Also check dependencies section
     deps = profile.get("dependencies", {})

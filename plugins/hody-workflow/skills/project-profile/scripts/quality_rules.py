@@ -7,6 +7,11 @@ Falls back to built-in defaults when no config file exists.
 import os
 import re
 
+try:
+    from . import mini_yaml
+except ImportError:
+    import mini_yaml
+
 
 DEFAULT_RULES = {
     "version": "1",
@@ -71,126 +76,9 @@ BUILTIN_SECURITY_PATTERNS = [
 
 
 def _parse_yaml_simple(content):
-    """Simple YAML parser for quality-rules.yaml (stdlib only).
-
-    Handles:
-    - Top-level keys with string/bool/int values
-    - Nested dicts (2 levels deep)
-    - Lists of strings
-    - Lists of dicts (for custom_patterns)
-    - Comments (#) and empty lines
-    - Boolean parsing: true/false -> True/False
-    """
-    result = {}
-    current_top_key = None
-    current_nested_key = None
-    current_list = None
-    current_dict_ref = None
-
-    for line in content.splitlines():
-        stripped = line.strip()
-        if not stripped or stripped.startswith("#"):
-            continue
-
-        indent = len(line) - len(line.lstrip())
-
-        # Top-level key (indent 0)
-        if indent == 0 and ":" in stripped:
-            key, _, value = stripped.partition(":")
-            key = key.strip()
-            value = value.strip()
-            current_nested_key = None
-            current_list = None
-            if value:
-                result[key] = _parse_value(value)
-            else:
-                result[key] = {}
-            current_top_key = key
-            current_dict_ref = result[key]
-            continue
-
-        # Second-level key (indent 2)
-        if indent == 2 and ":" in stripped and current_top_key:
-            key, _, value = stripped.partition(":")
-            key = key.strip()
-            value = value.strip()
-            current_list = None
-            if isinstance(current_dict_ref, dict):
-                if value:
-                    current_dict_ref[key] = _parse_value(value)
-                    current_nested_key = key
-                else:
-                    current_dict_ref[key] = {}
-                    current_nested_key = key
-            continue
-
-        # Third-level key (indent 4), could be a dict or start of a list
-        if indent == 4 and current_top_key and current_nested_key:
-            parent = result.get(current_top_key, {})
-            nested = parent.get(current_nested_key) if isinstance(parent, dict) else None
-
-            if stripped.startswith("- "):
-                item_content = stripped[2:].strip()
-                # Ensure parent is a list
-                if not isinstance(nested, list):
-                    if isinstance(parent, dict):
-                        parent[current_nested_key] = []
-                        nested = parent[current_nested_key]
-                    else:
-                        continue
-                if ":" in item_content:
-                    k, _, v = item_content.partition(":")
-                    item = {k.strip(): _parse_value(v.strip())}
-                    nested.append(item)
-                else:
-                    nested.append(_parse_value(item_content.strip('"').strip("'")))
-                current_list = nested
-                continue
-
-            if ":" in stripped:
-                key, _, value = stripped.partition(":")
-                key = key.strip()
-                value = value.strip()
-                if isinstance(nested, dict):
-                    if value:
-                        nested[key] = _parse_value(value)
-                    else:
-                        nested[key] = {}
-                elif not isinstance(nested, list):
-                    # Convert to dict if needed
-                    if isinstance(parent, dict):
-                        parent[current_nested_key] = {key: _parse_value(value) if value else {}}
-                continue
-
-        # Fourth-level (indent 6+) — continuation of list dict items or nested list
-        if indent >= 6 and current_top_key and current_nested_key:
-            parent = result.get(current_top_key, {})
-            nested = parent.get(current_nested_key) if isinstance(parent, dict) else None
-
-            if stripped.startswith("- "):
-                item_content = stripped[2:].strip()
-                # This is a list inside a third-level key
-                # Find the last dict-value that should be a list
-                if isinstance(nested, dict):
-                    # Find the last key that was set to {} (empty) to fill it as a list
-                    for k in reversed(list(nested.keys())):
-                        v = nested[k]
-                        if isinstance(v, list):
-                            v.append(_parse_value(item_content.strip('"').strip("'")))
-                            break
-                        elif isinstance(v, dict) and not v:
-                            nested[k] = [_parse_value(item_content.strip('"').strip("'"))]
-                            break
-                continue
-
-            if ":" in stripped and current_list and isinstance(current_list, list):
-                # Continuation of a list-of-dicts item
-                k, _, v = stripped.partition(":")
-                if current_list and isinstance(current_list[-1], dict):
-                    current_list[-1][k.strip()] = _parse_value(v.strip())
-                continue
-
-    return result
+    """Parse quality-rules.yaml (stdlib only). Returns a dict."""
+    parsed = mini_yaml.loads(content)
+    return parsed if isinstance(parsed, dict) else {}
 
 
 def _parse_value(val):
@@ -272,7 +160,9 @@ def matches_ignore_path(filepath, ignore_paths):
         if not pattern:
             continue
         if pattern.endswith("/"):
-            if pattern.rstrip("/") in lowered:
+            # whole path segment(s) only: "test/" matches test/x.py and
+            # src/test/x.py, never src/attestation/x.py or latest.js
+            if ("/" + lowered).find("/" + pattern) != -1:
                 return True
         elif "*" in pattern:
             # Simple glob: *.test.* -> check if ".test." is in filename
@@ -541,6 +431,8 @@ rules:
     severity: error
     max_kb: 500
 
+  # coverage and dependency_audit are reserved: the gate does not run them
+  # yet, so enabling them has no effect.
   coverage:
     enabled: false
     min_percentage: 80

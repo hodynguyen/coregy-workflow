@@ -15,9 +15,9 @@ If the section above contains text, apply it to the sync:
 - Mode name (git-branch, gist, shared-repo) → use that sync mode
 - "push" → only upload local KB to shared location
 - "pull" → only download from shared location
-- "dry-run" → show what would change without modifying anything
+- "status" → show local KB file sizes only (`--action status`)
 
-If empty, detect the configured sync mode from profile.yaml and sync bidirectionally.
+If empty, ask the user for the action and mode (step 2). There is no stored sync configuration and no two-way merge: each run is a one-directional push or pull.
 
 ## Steps
 
@@ -84,8 +84,8 @@ Knowledge base updated at .hody/knowledge/
 ## Sync Modes Detail
 
 ### Git Branch mode
-- **Push**: Checks out an orphan branch (e.g., `hody-knowledge`), copies KB files, commits, pushes to remote, then returns to original branch. Uncommitted work is stashed and restored.
-- **Pull**: Fetches the branch from remote, extracts KB files into `.hody/knowledge/`.
+- **Push**: Commits every `.md` in `.hody/knowledge/` (working-copy content) onto the `hody-knowledge` branch using git plumbing and pushes it. Your checkout, index, working tree and stash are never touched.
+- **Pull**: Fetches the branch from remote and writes every `.md` on it into `.hody/knowledge/`.
 - Best for: teams using the same repo
 
 ### Gist mode
@@ -101,7 +101,7 @@ Knowledge base updated at .hody/knowledge/
 ## Notes
 
 - Pull overwrites local KB files — commit your `.hody/knowledge/` before pulling if you have local changes
-- Push to git-branch stashes uncommitted changes and restores them after
+- Push to git-branch never switches branches or stashes — it is safe with uncommitted work
 - Gist mode requires `gh` CLI: `brew install gh && gh auth login`
 - Shared repo uses the project directory name to namespace files
 - Run `/hody-workflow:sync` with action `status` to see current KB file sizes

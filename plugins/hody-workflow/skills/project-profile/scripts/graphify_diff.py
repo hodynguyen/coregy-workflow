@@ -172,14 +172,12 @@ def append_tech_debt(cwd, diff):
     today = datetime.utcnow().strftime("%Y-%m-%d")
     lines = []
     lines.append("")
-    lines.append("---")
-    lines.append("tags: [graphify, coupling, god-node]")
-    lines.append("created: %s" % today)
-    lines.append("author_agent: graphify_diff")
-    lines.append("status: active")
-    lines.append("---")
-    lines.append("")
     lines.append("## New god nodes detected (%s)" % today)
+    # Section metadata as a comment: a mid-file `---` block is not frontmatter
+    # (Markdown renders its last line as a heading, the index ignores it).
+    lines.append("<!-- author_agent: graphify_diff | created: %s | "
+                 "tags: graphify, coupling, god-node -->" % today)
+    lines.append("- **Priority**: medium")
     lines.append("")
     lines.append(
         "The Graphify knowledge graph flagged new high-coupling nodes "

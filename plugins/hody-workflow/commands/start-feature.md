@@ -166,8 +166,8 @@ Do NOT proceed to execution until the user explicitly confirms.
 ```markdown
 ---
 tags: [spec, <feature-type>, <relevant-tags>]
-date: <YYYY-MM-DD>
-author-agent: start-feature
+created: <YYYY-MM-DD>
+author_agent: start-feature
 status: confirmed
 ---
 
@@ -204,7 +204,10 @@ The log file is where each agent will append its detailed work record. It tracks
 - KB files updated
 - Key decisions made
 
-Also create a tracker item:
+Also create a tracker item linked to the workflow — pass the `workflow_id` from the
+`init-workflow` JSON output. The link is what lets `state.py` move the item to
+`in_progress` when the first agent starts and to `completed`/`abandoned` when the
+workflow ends; an unlinked item stays "created" forever:
 
 ```bash
 python3 ${CLAUDE_PLUGIN_ROOT}/skills/project-profile/scripts/tracker.py create \
@@ -212,6 +215,7 @@ python3 ${CLAUDE_PLUGIN_ROOT}/skills/project-profile/scripts/tracker.py create \
   --title "<feature description>" \
   --tags "<relevant tags>" \
   --priority medium \
+  --workflow-id "<workflow_id from init-workflow>" \
   --cwd .
 ```
 
@@ -247,7 +251,8 @@ python3 ${CLAUDE_PLUGIN_ROOT}/skills/project-profile/scripts/tracker.py create \
      Next: architect (THINK phase)
      → continue | skip | abort
      ```
-     Wait for the user to respond before proceeding.
+     Wait for the user to respond before proceeding. `skip` →
+     `state.py skip-agent <next agent> --cwd .`; `abort` → `state.py abort --cwd .`.
 
    **Parallel agents**: During BUILD phase, if both `frontend` and `backend` are present, run them in parallel (all modes).
 
@@ -258,7 +263,8 @@ python3 ${CLAUDE_PLUGIN_ROOT}/skills/project-profile/scripts/state.py complete -
 ```
 
 This finalizes the feature log (appends the Summary section and flips the frontmatter to
-`status: completed`) and sets the workflow status in one call. Then:
+`status: completed`), sets the workflow status and completes the linked tracker item in
+one call. Then:
    - Show a final summary of all agent outputs
    - Update the spec file status to `implemented`
 

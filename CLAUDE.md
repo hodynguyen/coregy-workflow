@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project Overview
 
-This is the **Hody Workflow** plugin for Claude Code — a project-aware development workflow system with 9 specialized AI agents. Current version: v0.13.0. Full documentation is in `docs/` (PROPOSAL, ARCHITECTURE, ROADMAP, USER_GUIDE).
+This is the **Hody Workflow** plugin for Claude Code — a project-aware development workflow system with 9 specialized AI agents. Current version: v0.13.1. Full documentation is in `docs/` (PROPOSAL, ARCHITECTURE, ROADMAP, USER_GUIDE).
 
 The plugin provides:
 - Auto-detection of project tech stacks (generates `.hody/profile.yaml`)
@@ -51,6 +51,9 @@ plugins/hody-workflow/
 │   │   │   ├── tracker_schema.py  # Tracker DB schema definitions
 │   │   │   ├── tracker_awareness.py # Tracker context injection
 │   │   │   ├── rules.py           # Project rules engine (.hody/rules.yaml)
+│   │   │   ├── mcp_setup.py       # Jira/Linear/GitHub MCP setup CLI
+│   │   │   ├── mcp_config.py      # Registers MCP servers (claude mcp local scope / .mcp.json)
+│   │   │   ├── mini_yaml.py       # Stdlib indentation-aware YAML reader
 │   │   │   ├── kb_index.py        # KB index builder (_index.json) + CLI
 │   │   │   ├── kb_archive.py      # KB auto-archival (archive/ dir) + CLI
 │   │   │   ├── contracts.py       # Agent I/O contract validator + CLI
@@ -102,7 +105,7 @@ plugins/hody-workflow/
 ## Testing
 
 ```bash
-# Run all tests (802 tests across 33 test files)
+# Run all tests (841 tests across 33 test files)
 python3 -m unittest discover -s test -v
 
 # Tests cover: per-language detectors, monorepo, devops, serializer, quality gate, KB sync,
@@ -140,3 +143,4 @@ python3 -m unittest discover -s test -v
 - **v0.11.0 (Auto-Track)**: Complete — Heuristic intent detector (`auto_track.py`) classifies user prompts as task/bug-fix/investigation. New `UserPromptSubmit` hook (`auto_track_hook.py`) injects a tracking hint when a non-workflow prompt looks like a substantive task. Skipped automatically inside active workflows or via `HODY_AUTO_TRACK=0`. Bilingual (English + Vietnamese) verb/question detection. 586 tests total.
 - **v0.12.0 (MCP Auto-Setup)**: Complete — `mcp_setup.py` configures Jira/Linear/GitHub MCP servers non-interactively when all required fields are passed (e.g. `--api-token`, `--site`, `--email` for Jira). Falls back to interactive guidance listing missing fields with where-to-get instructions. Merges into `.claude/settings.json` without clobbering other servers; flips `integrations.<name>` in profile.yaml. CLI subcommands: `jira/linear/github` (configure), `remove`, `status`, `fields`. 615 tests total.
 - **v0.13.0 (Runtime Wiring & Script CLIs)**: Complete — Fixed two runtime bugs: `${PLUGIN_ROOT}` -> `${CLAUDE_PLUGIN_ROOT}` across 10 commands + 9 agents (40 sites; the old variable does not exist, so every bash call in a command/agent expanded to an empty path), and the quality gate's `git commit` detector, which only matched a commit at the very start of a command and so never fired on `git add -A && git commit`. Added an argparse CLI (`hody-cli-v1` convention: shared `--cwd` parent parser, hyphenated subcommands, `--json`, exit 0/1/2) to the 7 previously unreachable scripts -- `state.py`, `health.py`, `kb_index.py`, `kb_archive.py`, `contracts.py`, `ci_monitor.py`, `team.py` -- as a pure wrapper layer with zero library signature changes, plus a CLI-layer `_normalize_state()` that heals legacy `state.json` schemas. Rewired `/init`, `/update-kb`, `/kb-search`, `/health`, `/ci-report`, `/start-feature`, `/resume` and 5 agent contract checks from prose to real bash invocations. New `/hody-workflow:team` command (14 -> 15). Linked the 3 orphaned output styles to their agents; removed a stray 324KB `graphify-out/` cache and guarded it in `.gitignore`.
+- **v0.13.1 (Audit Fixes)**: Complete — Full code audit. Quality gate now scans files staged by the same command (`git add -A && git commit`, `commit -a`) and the staged blob, not the working tree; warnings are surfaced. New `mini_yaml.py` fixes quality-rules parsing (default config had silently disabled debug checks and custom secret patterns); `test/` ignore paths match whole segments. SessionStart context moved from `systemMessage` (user-only) to `additionalContext`. MCP servers registered where Claude Code reads them (`claude mcp` local scope, else gitignored `.mcp.json`) with real packages (`mcp-atlassian`, Linear/GitHub remote MCP). State machine handles an agent listed in two phases (refactor flow never finished). `ci_monitor` fetches failed logs by run id. `kb_sync` git-branch push rewritten with plumbing (no checkout/stash), gist mode uses valid `gh` syntax. Tracker items link to workflows and follow their status; `note` appends; `migrate` idempotent; `show` subcommand. KB: unified `created`/`author_agent` keys, section metadata comments instead of mid-file frontmatter, archival never drops undated topical sections. Health reads real deep-analysis keys, ignores template frontmatter, workflow history persisted to `state_history.json`. Contracts scoped to the active workflow with agent handoff sections. `rules init` needs `--force`; solo projects default to `lead`; framework-less projects detected as `library`.

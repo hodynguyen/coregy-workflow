@@ -69,8 +69,15 @@ def init_workflow(cwd, feature, feature_type, phases, spec_confirmed=False,
         raise ValueError(
             f"Invalid execution_mode: {execution_mode}. Must be one of {VALID_MODES}"
         )
-    phase_order = [p for p in ["THINK", "BUILD", "VERIFY", "SHIP"] if p in phases]
+    unknown = [p for p in phases if p not in CANONICAL_PHASE_ORDER]
+    if unknown:
+        raise ValueError(
+            f"Unknown phase(s) {unknown}; use {CANONICAL_PHASE_ORDER}"
+        )
+    phase_order = [p for p in CANONICAL_PHASE_ORDER if p in phases]
     slug = _make_slug(feature)
+
+    _archive_previous_state(cwd)
 
     if log_file is None:
         log_file = f"log-{slug}.md"
@@ -100,6 +107,35 @@ def init_workflow(cwd, feature, feature_type, phases, spec_confirmed=False,
         }
 
     return _write_state(cwd, state)
+
+
+def _archive_previous_state(cwd):
+    """Append the workflow about to be replaced to .hody/state_history.json.
+
+    Without this, starting a new workflow erased the previous one, and the
+    health dashboard's completion stats (which read state_history.json)
+    only ever saw a single workflow.
+    """
+    previous = load_state(cwd) if os.path.isfile(_state_path(cwd)) else None
+    if not previous:
+        return
+    history_path = os.path.join(cwd, ".hody", "state_history.json")
+    history = []
+    if os.path.isfile(history_path):
+        try:
+            with open(history_path, "r") as f:
+                history = json.load(f)
+        except (json.JSONDecodeError, OSError):
+            history = []
+    if not isinstance(history, list):
+        history = []
+    if any(h.get("workflow_id") == previous.get("workflow_id")
+           and h.get("updated_at") == previous.get("updated_at")
+           for h in history if isinstance(h, dict)):
+        return
+    history.append(previous)
+    with open(history_path, "w") as f:
+        json.dump(history, f, indent=2)
 
 
 def load_state(cwd):
@@ -151,11 +187,39 @@ def confirm_spec(cwd, spec_file):
 
 
 def _find_agent_phase(state, agent_name):
-    """Find which phase an agent belongs to."""
-    for phase in state["phase_order"]:
-        if agent_name in state["phases"][phase]["agents"]:
+    """Find which phase an agent occurrence refers to.
+
+    An agent may appear in more than one phase (the refactor sequence runs
+    code-reviewer to assess in THINK and again to verify in VERIFY), so the
+    lookup prefers, in order: the phase where it is active, the first phase
+    where it is still pending, then the first phase that lists it at all.
+    """
+    listed = [p for p in state["phase_order"]
+              if agent_name in state["phases"][p]["agents"]]
+    if not listed:
+        return None
+    for phase in listed:
+        if state["phases"][phase].get("active") == agent_name:
             return phase
-    return None
+    for phase in listed:
+        p = state["phases"][phase]
+        if agent_name not in p["completed"] and agent_name not in p["skipped"]:
+            return phase
+    return listed[0]
+
+
+def _already_completed(state, agent_name):
+    """True when the agent is active nowhere and its last run is closed.
+
+    Makes complete_agent() idempotent for agents listed in several phases:
+    the orchestrator's second complete-agent call must not tick off the
+    agent's *next* occurrence.
+    """
+    for phase in state["phase_order"]:
+        if state["phases"][phase].get("active") == agent_name:
+            return False
+    entries = [e for e in state.get("agent_log", []) if e.get("agent") == agent_name]
+    return bool(entries) and entries[-1].get("completed_at") is not None
 
 
 def _current_phase(state):
@@ -247,6 +311,7 @@ def start_agent(cwd, agent_name):
     })
 
     updated_state = _write_state(cwd, state)
+    _sync_tracker(cwd, updated_state)  # linked tracker item: created -> in_progress
 
     # Check for existing checkpoint (agent was interrupted before)
     checkpoint = _load_checkpoint(cwd, state["workflow_id"], agent_name)
@@ -266,6 +331,9 @@ def complete_agent(cwd, agent_name, output_summary="", kb_files_modified=None):
     phase = _find_agent_phase(state, agent_name)
     if phase is None:
         raise ValueError(f"Agent '{agent_name}' not found in any workflow phase")
+
+    if _already_completed(state, agent_name):
+        return state  # repeated call for a run that is already recorded
 
     p = state["phases"][phase]
 
@@ -327,6 +395,21 @@ def _clear_all_checkpoints(cwd, workflow_id):
         pass
 
 
+def _sync_tracker(cwd, state):
+    """Best-effort: mirror the workflow status onto its tracker item."""
+    try:
+        from . import tracker as tracker_module
+    except ImportError:
+        try:
+            import tracker as tracker_module
+        except ImportError:
+            return
+    try:
+        tracker_module.sync_workflow_status(cwd, state)
+    except Exception:
+        pass
+
+
 def complete_workflow(cwd):
     """Set status = 'completed', record end time.
 
@@ -341,7 +424,9 @@ def complete_workflow(cwd):
 
     state["status"] = "completed"
     _clear_all_checkpoints(cwd, state["workflow_id"])
-    return _write_state(cwd, state)
+    state = _write_state(cwd, state)
+    _sync_tracker(cwd, state)
+    return state
 
 
 def abort_workflow(cwd):
@@ -352,7 +437,9 @@ def abort_workflow(cwd):
 
     state["status"] = "aborted"
     _clear_all_checkpoints(cwd, state["workflow_id"])
-    return _write_state(cwd, state)
+    state = _write_state(cwd, state)
+    _sync_tracker(cwd, state)
+    return state
 
 
 def _log_path(cwd, log_file):
@@ -388,8 +475,8 @@ def create_feature_log(cwd, feature, feature_type, spec_file=None, log_file=None
     content = (
         f"---\n"
         f"tags: [log, {feature_type}]\n"
-        f"date: {today}\n"
-        f"author-agent: start-feature\n"
+        f"created: {today}\n"
+        f"author_agent: start-feature\n"
         f"status: in_progress\n"
         f"---\n\n"
         f"# Feature Log: {feature}\n"
@@ -469,6 +556,10 @@ def finalize_feature_log(cwd, log_file=None):
     path = _log_path(cwd, log_file)
     if not os.path.isfile(path):
         return
+
+    with open(path, "r") as f:
+        if "\n## Summary\n" in f.read():
+            return  # already finalized -- don't append a second summary
 
     # Build summary from agent_log
     lines = ["\n## Summary\n"]
@@ -666,6 +757,10 @@ def _ensure_open_log_entry(cwd, state, agent):
     if phase is None:
         return False
     if agent in state["phases"][phase].get("completed", []):
+        return False
+    if _already_completed(state, agent):
+        # Its last run is recorded and it is not active: this is a repeated
+        # complete-agent call, not a new run of the agent's next occurrence.
         return False
     for entry in state.get("agent_log", []):
         if entry.get("agent") == agent and entry.get("completed_at") is None:

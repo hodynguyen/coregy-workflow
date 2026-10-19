@@ -156,6 +156,12 @@ class TestGetUserRole(unittest.TestCase):
         self.assertEqual(get_user_role(self.config, "unknown"), "developer")
         self.assertEqual(get_user_role(self.config, None), "developer")
 
+    def test_get_user_role_solo_project_is_lead(self):
+        """No members configured: the only user must not be locked out of agents."""
+        config = {"roles": dict(DEFAULT_ROLES), "members": []}
+        self.assertEqual(get_user_role(config, "anyone"), "lead")
+        self.assertEqual(get_user_role(config, None), "lead")
+
 
 class TestGetRolePermissions(unittest.TestCase):
     def setUp(self):

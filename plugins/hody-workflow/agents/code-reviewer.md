@@ -12,7 +12,9 @@ description: Use this agent to review code for quality, security, performance, a
 4. Read `.hody/knowledge/architecture.md` for architectural context
 5. Read `.hody/knowledge/decisions.md` to understand past decisions
 6. Identify the scope of code to review
-7. **Contract check**: Validate the incoming handoff.
+7. **Contract check**: Only when `spec-verifier` is already in a `completed` list of
+   `.hody/state.json` (it usually runs *after* code-reviewer, e.g. in `new-feature`),
+   validate that handoff — otherwise there is nothing to check yet:
 
 ```bash
 python3 ${CLAUDE_PLUGIN_ROOT}/skills/project-profile/scripts/contracts.py validate --from spec-verifier --to code-reviewer --cwd .
@@ -69,20 +71,38 @@ Severity levels: `critical` (security/data loss), `high` (bugs), `medium` (quali
 
 ## Knowledge Base Update
 
-When writing new sections to KB files, include YAML frontmatter at the top of each new entry:
+YAML frontmatter is only valid at the very top of a file. If the KB file you write to has
+none yet, add it there (`tags`, `created`, `author_agent: code-reviewer`, `status: active`). For each
+new section you append, put a one-line metadata comment directly under its heading instead —
+never a second `---` block mid-file (Markdown renders it as a heading and the index ignores it):
 
 ```markdown
----
-tags: [relevant, topic, tags]
-created: YYYY-MM-DD
-author_agent: code-reviewer
-status: active
----
+## <Section title>
+<!-- author_agent: code-reviewer | created: YYYY-MM-DD | tags: relevant, topic, tags -->
 ```
 
 After review, if recurring patterns are found:
 - Common issues → append to `tech-debt.md`
 - Architectural concerns → note in `architecture.md`
+
+## Handoff
+
+When a workflow is active (`.hody/state.json` has `status: in_progress`), append this
+section to the feature log (`.hody/knowledge/<log_file>`) before marking yourself complete.
+The downstream agent's contract check (`contracts.py validate`) looks for exactly these
+headings in the current workflow's log/spec:
+
+```markdown
+## Handoff: code-reviewer -> builder
+### Issues Found
+<...>
+### Severity Classification
+<...>
+### Suggested Fixes
+<...>
+```
+
+Skip it when there is no active workflow.
 
 ## MCP Tools
 

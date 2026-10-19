@@ -22,7 +22,7 @@ Parse the section above as `<integration> [--field value ...]`:
 
 - If all required `--field` flags for the chosen integration are present, run setup non-interactively (no questions, just write settings + profile, then tell user to restart).
 - If any required field is missing, list the missing fields with their guidance, then prompt the user one by one. Never proceed without valid values.
-- Tokens and secrets entered interactively must NOT be echoed in the next reply or stored anywhere outside `.claude/settings.json`.
+- Tokens and secrets entered interactively must NOT be echoed in the next reply or stored anywhere other than where `mcp_setup.py` registers the server.
 
 **Required fields per integration** (see `mcp_setup.py fields <name>` for canonical source):
 
@@ -54,9 +54,9 @@ If no `integrations:` section exists, show all as "Not configured".
 
 | Integration | MCP Server | What agents can do |
 |-------------|-----------|-------------------|
-| **GitHub** | `@modelcontextprotocol/server-github` or `gh` CLI | Read issues/PRs, create PRs, post comments, read repo metadata |
-| **Linear** | `@modelcontextprotocol/server-linear` | Read/create issues, link work to tickets, track project progress |
-| **Jira** | MCP server for Jira (or Atlassian MCP) | Read/create issues, link work to tickets, read sprint info |
+| **GitHub** | GitHub remote MCP (`https://api.githubcopilot.com/mcp/`) or `gh` CLI | Read issues/PRs, create PRs, post comments, read repo metadata |
+| **Linear** | Linear remote MCP (`https://mcp.linear.app/mcp`) | Read/create issues, link work to tickets, track project progress |
+| **Jira** | `mcp-atlassian` (run via `uvx`, needs `uv` installed) | Read/create issues, link work to tickets, read sprint info |
 | **Graphify** | `graphify.serve` (Python MCP stdio) | Query code knowledge graph: call graphs, module boundaries, god nodes, blast radius |
 
 4. **Configure the selected integration**:
@@ -73,27 +73,17 @@ gh auth status
 - If `gh` is not installed → suggest `brew install gh` (macOS) or see https://cli.github.com/
 - If `gh` is not authenticated → suggest `gh auth login`
 
-Alternatively, configure the GitHub MCP server for richer integration:
-
-```json
-{
-  "mcpServers": {
-    "github": {
-      "command": "npx",
-      "args": ["-y", "@modelcontextprotocol/server-github"],
-      "env": {
-        "GITHUB_PERSONAL_ACCESS_TOKEN": "<token>"
-      }
-    }
-  }
-}
-```
-
-Tell the user to add this to their Claude Code MCP settings (`.claude/settings.json` or via `/mcp` command).
+Alternatively, register GitHub's remote MCP server for richer integration with
+`mcp_setup.py github --token <PAT>` (see below).
 
 ### Linear / Jira / GitHub Setup (auto-install)
 
-These three integrations share the same setup flow via `mcp_setup.py`. The script writes `.claude/settings.json` (merging with existing servers) and flips `integrations.<name>: true` in `.hody/profile.yaml`.
+These three integrations share the same setup flow via `mcp_setup.py`. The script registers the server where Claude Code actually loads it and flips `integrations.<name>: true` in `.hody/profile.yaml`:
+
+- **Local scope** via `claude mcp add-json --scope local` when the `claude` CLI is on PATH — private to this user and project, so the token never lands in a committed file.
+- Otherwise **`.mcp.json`** at the project root; because it then holds credentials, the script adds `.mcp.json` to `.gitignore` and returns a `warning` — relay it to the user.
+
+Claude Code does **not** read `mcpServers` from `.claude/settings.json`; any entry an older hody version wrote there is removed on configure/remove.
 
 **Step 1 — Check for required fields in $ARGUMENTS.**
 
@@ -112,14 +102,10 @@ python3 ${CLAUDE_PLUGIN_ROOT}/skills/project-profile/scripts/mcp_setup.py --cwd 
   --email "<email>"
 ```
 
-`--cwd` must come **before** the integration name: unlike the other scripts,
-`mcp_setup.py` defines it only on the top-level parser, so `mcp_setup.py jira --cwd .`
-exits 2 with "unrecognized arguments".
-
 Output is JSON describing what was written. After success, tell the user:
 
 ```
-✅ jira MCP configured in .claude/settings.json
+✅ jira MCP registered (<location from the JSON output>)
    profile.yaml updated: integrations.jira = true
    ⚠️  Restart Claude Code for the MCP server to load.
    Verify with /mcp after restart, or ask Claude to "list available Jira projects".
@@ -152,7 +138,7 @@ For Linear / GitHub use the same pattern — list each missing field, the env va
 python3 ${CLAUDE_PLUGIN_ROOT}/skills/project-profile/scripts/mcp_setup.py --cwd . remove jira
 ```
 
-This drops the server entry from `.claude/settings.json` and sets `integrations.jira: false` in profile.yaml. Other servers in `mcpServers` are preserved.
+This removes the server from local scope, `.mcp.json` and any legacy `.claude/settings.json` entry, and sets `integrations.jira: false` in profile.yaml. Other servers in `mcpServers` are preserved.
 
 **Status / list** of all integrations:
 
@@ -160,7 +146,7 @@ This drops the server entry from `.claude/settings.json` and sets `integrations.
 python3 ${CLAUDE_PLUGIN_ROOT}/skills/project-profile/scripts/mcp_setup.py --cwd . status
 ```
 
-Returns JSON of `configured_in_settings` and `profile_flag` per integration.
+Returns JSON of `configured`, `location` (`local`, `.mcp.json`, `legacy` or null) and `profile_flag` per integration. `legacy` means an old `.claude/settings.json` entry that Claude Code never loaded — re-run the configure command to fix it.
 
 ### Graphify Setup
 
@@ -176,7 +162,7 @@ The script handles all steps automatically:
 1. Finds a suitable Python >= 3.10 interpreter
 2. Installs `graphifyy` if missing (handles PEP 668 / externally-managed environments)
 3. Builds the knowledge graph (AST extraction, no LLM) into `graphify-out/graph.json`
-4. Configures the MCP server in `.claude/settings.json`
+4. Registers the MCP server (local scope via `claude mcp`, else `.mcp.json`)
 5. Adds `integrations.graphify: true` to `.hody/profile.yaml`
 6. Adds `graphify-out/` to `.gitignore`
 
@@ -233,7 +219,7 @@ Run /hody-workflow:connect again to add more integrations.
 ## Notes
 
 - Integrations are optional — all agents work without them
-- MCP servers run locally and connect via stdio — no data sent to third parties beyond the configured service
+- Jira and Graphify run locally over stdio; GitHub and Linear use their vendors' hosted MCP endpoints over HTTPS
 - Integration config is stored in `.hody/profile.yaml` (project-level) and Claude Code MCP settings (user-level)
 - Run `/hody-workflow:connect` again to add or change integrations
 - Agents check `integrations:` in profile.yaml at bootstrap to know which tools are available

@@ -250,7 +250,16 @@ def main():
             except Exception:
                 pass  # Don't block session on rules error
 
-        output = {"systemMessage": system_msg}
+        # additionalContext is what reaches the model; a top-level
+        # systemMessage is only a notice shown to the user, so emitting the
+        # context there (as this hook did before v0.13.1) never informed any
+        # agent of the stack, workflow, tracker or rules.
+        output = {
+            "hookSpecificOutput": {
+                "hookEventName": "SessionStart",
+                "additionalContext": system_msg,
+            }
+        }
         print(json.dumps(output))
         sys.exit(0)
 

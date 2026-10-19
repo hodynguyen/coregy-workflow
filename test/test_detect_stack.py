@@ -28,6 +28,26 @@ class TestEmptyProject(unittest.TestCase):
             self.assertNotIn("backend", profile)
 
 
+class TestFrameworklessProject(unittest.TestCase):
+    """A language with no recognised framework is a library, not "unknown"."""
+
+    def test_python_library(self):
+        with tempfile.TemporaryDirectory() as tmpdir:
+            with open(os.path.join(tmpdir, "pyproject.toml"), "w") as f:
+                f.write('[project]\nname = "tool"\n')
+            profile = build_profile(tmpdir)
+            self.assertEqual(profile["project"]["type"], "library")
+            self.assertEqual(profile["project"]["language"], "python")
+
+    def test_typescript_package(self):
+        with tempfile.TemporaryDirectory() as tmpdir:
+            with open(os.path.join(tmpdir, "package.json"), "w") as f:
+                f.write('{"name": "lib", "devDependencies": {"typescript": "5"}}')
+            profile = build_profile(tmpdir)
+            self.assertEqual(profile["project"]["type"], "library")
+            self.assertEqual(profile["project"]["language"], "typescript")
+
+
 class TestBackwardCompatibleImports(unittest.TestCase):
     def test_build_profile_importable(self):
         self.assertTrue(callable(build_profile))

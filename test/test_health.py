@@ -272,6 +272,35 @@ class TestGetDependencyHealth(unittest.TestCase):
             self.assertEqual(result["total_deps"], 0)
 
 
+    def test_reads_deep_analysis_as_written_by_detector(self):
+        """detect_stack --deep writes lists + dependency_count (not *_count keys)."""
+        with tempfile.TemporaryDirectory() as tmpdir:
+            _write_file(os.path.join(tmpdir, "profile.yaml"),
+                        "deep_analysis:\n"
+                        "  dependency_count: 42\n"
+                        "  outdated:\n"
+                        "    - package: a\n      current: 1.0.0\n"
+                        "    - package: b\n      current: 2.0.0\n"
+                        "  security:\n"
+                        "    - package: c\n      severity: high\n")
+            result = get_dependency_health(os.path.join(tmpdir, "profile.yaml"))
+            self.assertEqual(result["total_deps"], 42)
+            self.assertEqual(result["outdated_count"], 2)
+            self.assertEqual(result["vulnerability_count"], 1)
+
+
+class TestTemplateFrontmatter(unittest.TestCase):
+    def test_populated_file_with_template_date_in_frontmatter(self):
+        """`created: YYYY-MM-DD` left in frontmatter must not mark a written file as template."""
+        with tempfile.TemporaryDirectory() as tmpdir:
+            _write_file(os.path.join(tmpdir, "architecture.md"),
+                        "---\ntags: [architecture]\ncreated: YYYY-MM-DD\n---\n\n"
+                        "# Architecture\n\n## System Overview\n"
+                        "A real description of the service and its components.\n")
+            result = check_kb_completeness(tmpdir)
+            status = {d["file"]: d["status"] for d in result["details"]}
+            self.assertEqual(status["architecture.md"], "populated")
+
 class TestBuildHealthReport(unittest.TestCase):
     def test_build_health_report(self):
         """Full report structure has all expected keys."""

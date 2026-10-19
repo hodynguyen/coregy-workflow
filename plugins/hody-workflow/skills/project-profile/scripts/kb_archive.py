@@ -26,14 +26,18 @@ def _split_into_sections(content):
 
     Returns list of (heading, text) tuples. The first tuple may have
     heading=None for content before the first ## heading (preamble).
+    A `## ` line inside a fenced code block is content, not a heading.
     """
     lines = content.splitlines(keepends=True)
     sections = []
     current_heading = None
     current_lines = []
+    in_fence = False
 
     for line in lines:
-        match = re.match(r"^##\s+(.+)", line)
+        if line.lstrip().startswith(("```", "~~~")):
+            in_fence = not in_fence
+        match = None if in_fence else re.match(r"^##\s+(.+)", line)
         if match:
             # Save previous section
             if current_heading is not None or current_lines:
@@ -56,11 +60,22 @@ def _extract_date_from_section(text):
     Looks for frontmatter 'created:' or '**Date**:' patterns.
     Returns date string or None.
     """
-    # Check for created: in frontmatter-like content
+    # created:/date:/**Date**: fields, including section metadata comments
     match = re.search(r"(?:created|date|\*\*Date\*\*):\s*(\d{4}-\d{2}-\d{2})", text)
     if match:
         return match.group(1)
+    # a date in the heading itself, e.g. "## CI Failures (2026-09-29T...)"
+    first_line = text.split("\n", 1)[0]
+    match = re.search(r"(\d{4}-\d{2}-\d{2})", first_line)
+    if match:
+        return match.group(1)
     return None
+
+
+# Organised by topic, not by time: their first sections ("System Overview",
+# "Deployment", ...) are the most important, so only dated sections may be
+# archived from them -- never the undated topical ones.
+TOPICAL_FILES = {"architecture.md", "api-contracts.md", "business-rules.md", "runbook.md"}
 
 
 def check_file_needs_archival(filepath, threshold=DEFAULT_THRESHOLD):
@@ -115,10 +130,22 @@ def archive_file(filepath, archive_dir=None, threshold=DEFAULT_THRESHOLD, keep_s
     if len(content_sections) <= keep_sections:
         return None
 
-    # Sort sections by date if possible, otherwise keep original order
-    # Older sections (earlier in file or earlier dates) get archived
-    sections_to_archive = content_sections[:-keep_sections]
-    sections_to_keep = content_sections[-keep_sections:]
+    # Choose what to archive. Dated sections go oldest-first by date. Topical
+    # files never lose undated sections; other (append-only) files fall back
+    # to file order for undated ones, oldest at the top.
+    filename = os.path.basename(filepath)
+    dated = [(i, _extract_date_from_section(text))
+             for i, (_h, text) in enumerate(content_sections)]
+    if filename in TOPICAL_FILES or any(d for _i, d in dated):
+        candidates = sorted((d, i) for i, d in dated if d)
+        archive_idx = {i for _d, i in candidates[:max(0, len(candidates) - keep_sections)]}
+    else:
+        archive_idx = set(range(len(content_sections) - keep_sections))
+    if not archive_idx:
+        return None
+
+    sections_to_archive = [s for i, s in enumerate(content_sections) if i in archive_idx]
+    sections_to_keep = [s for i, s in enumerate(content_sections) if i not in archive_idx]
 
     # Set up archive directory
     if archive_dir is None:
@@ -126,7 +153,6 @@ def archive_file(filepath, archive_dir=None, threshold=DEFAULT_THRESHOLD, keep_s
     os.makedirs(archive_dir, exist_ok=True)
 
     # Write archived sections
-    filename = os.path.basename(filepath)
     name_base = os.path.splitext(filename)[0]
     timestamp = datetime.now(timezone.utc).strftime("%Y%m%d-%H%M%S")
     archive_filename = f"{name_base}-archive-{timestamp}.md"

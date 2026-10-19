@@ -355,6 +355,23 @@ def _do_migrate(cwd, state_data):
     conn = get_db(cwd)
     now = _now()
 
+    # Idempotent: /init runs migrate on every re-init while state.json exists.
+    workflow_id = state_data.get("workflow_id")
+    if workflow_id:
+        row = conn.execute(
+            "SELECT id, type, title, status, workflow_id, session_id, created_at, extra "
+            "FROM items WHERE workflow_id = ?", (workflow_id,)
+        ).fetchone()
+        if row is not None:
+            conn.close()
+            existing = dict(row)
+            try:
+                existing["extra"] = json.loads(existing.get("extra") or "{}")
+            except (json.JSONDecodeError, TypeError):
+                existing["extra"] = {}
+            existing["already_migrated"] = True
+            return existing
+
     # Generate IDs
     item_id = generate_item_id()
     session_id = generate_session_id(cwd)

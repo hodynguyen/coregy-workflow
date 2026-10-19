@@ -13,9 +13,8 @@ Usage:
   kb_sync.py --cwd <project> --mode gist --gist-id <id> --action pull
   kb_sync.py --cwd <project> --mode shared-repo --repo <url> --action push
 
-Merge strategy:
-  - Append-only sections merge automatically
-  - Conflicting sections are flagged for manual resolution
+Pull overwrites local KB files with the shared copy -- there is no merge.
+Commit .hody/knowledge/ before pulling if it has local changes.
 """
 import argparse
 import os
@@ -64,82 +63,106 @@ def validate_kb(cwd):
 
 # --- Git Branch Mode ---
 
+def _kb_md_files(kb_path):
+    return sorted(f for f in os.listdir(kb_path)
+                  if f.endswith(".md") and os.path.isfile(os.path.join(kb_path, f)))
+
+
 def git_branch_push(cwd, branch):
-    """Push .hody/knowledge/ to a dedicated git branch."""
+    """Push .hody/knowledge/ to a dedicated git branch.
+
+    Built entirely with plumbing (hash-object / mktree / commit-tree /
+    update-ref): the user's checkout, index, working tree and stash are never
+    touched. The previous checkout-based version ignored checkout failures,
+    so a failed switch committed the KB onto the user's own branch, and
+    `git rm -rf .` on the orphan branch deleted a tracked .hody/ before the
+    copy step could read it.
+    """
     kb_path = get_kb_path(cwd)
 
-    # Check we're in a git repo
     rc, _, _ = run_cmd(["git", "rev-parse", "--git-dir"], cwd=cwd)
     if rc != 0:
         return False, "Not a git repository."
 
-    # Get current branch to restore later
-    rc, current_branch, _ = run_cmd(["git", "rev-parse", "--abbrev-ref", "HEAD"], cwd=cwd)
-    if rc != 0:
-        return False, "Could not determine current branch."
+    files = _kb_md_files(kb_path)
+    if not files:
+        return False, "No knowledge base files to push."
 
-    # Check if target branch exists
-    rc, _, _ = run_cmd(["git", "show-ref", "--verify", f"refs/heads/{branch}"], cwd=cwd)
-    branch_exists = rc == 0
-
-    # Stash any uncommitted changes
-    rc, stash_out, _ = run_cmd(["git", "stash", "push", "-m", "hody-kb-sync"], cwd=cwd)
-    stashed = "No local changes" not in stash_out
+    tree_lines = []
+    for fname in files:
+        rc, sha, err = run_cmd(
+            ["git", "hash-object", "-w", os.path.join(kb_path, fname)], cwd=cwd)
+        if rc != 0:
+            return False, f"Could not hash {fname}: {err}"
+        tree_lines.append(f"100644 blob {sha}\t{fname}")
 
     try:
-        if branch_exists:
-            run_cmd(["git", "checkout", branch], cwd=cwd)
-        else:
-            run_cmd(["git", "checkout", "--orphan", branch], cwd=cwd)
-            run_cmd(["git", "rm", "-rf", "."], cwd=cwd)
-
-        # Copy KB files to root of branch
-        for fname in os.listdir(kb_path):
-            if fname.endswith(".md"):
-                shutil.copy2(os.path.join(kb_path, fname), os.path.join(cwd, fname))
-                run_cmd(["git", "add", fname], cwd=cwd)
-
-        # Commit
-        rc, _, err = run_cmd(
-            ["git", "commit", "-m", "sync: update knowledge base"],
-            cwd=cwd,
+        result = subprocess.run(
+            ["git", "mktree"], cwd=cwd, input="\n".join(tree_lines) + "\n",
+            capture_output=True, text=True, timeout=30,
         )
-        if rc != 0 and "nothing to commit" not in err:
-            return False, f"Commit failed: {err}"
+    except (subprocess.TimeoutExpired, OSError) as e:
+        return False, f"mktree failed: {e}"
+    if result.returncode != 0:
+        return False, f"mktree failed: {result.stderr.strip()}"
+    tree = result.stdout.strip()
 
-        # Push
-        rc, _, err = run_cmd(["git", "push", "origin", branch], cwd=cwd)
-        if rc != 0:
-            return False, f"Push failed: {err}"
+    # Parent: the local branch, else the remote one (so pushes fast-forward).
+    run_cmd(["git", "fetch", "origin", branch], cwd=cwd)
+    parent = None
+    for ref in (f"refs/heads/{branch}", f"refs/remotes/origin/{branch}"):
+        rc, sha, _ = run_cmd(["git", "rev-parse", "--verify", "-q", ref + "^{commit}"], cwd=cwd)
+        if rc == 0 and sha:
+            parent = sha
+            break
 
-        return True, f"Knowledge base pushed to branch '{branch}'."
-    finally:
-        # Restore original branch
-        run_cmd(["git", "checkout", current_branch], cwd=cwd)
-        if stashed:
-            run_cmd(["git", "stash", "pop"], cwd=cwd)
+    if parent:
+        rc, parent_tree, _ = run_cmd(["git", "rev-parse", parent + "^{tree}"], cwd=cwd)
+        if rc == 0 and parent_tree == tree:
+            rc, _, err = run_cmd(["git", "push", "origin", f"{parent}:refs/heads/{branch}"], cwd=cwd)
+            if rc != 0:
+                return False, f"Push failed: {err}"
+            return True, f"Knowledge base already up to date on branch '{branch}'."
+
+    cmd = ["git", "commit-tree", tree, "-m", "sync: update knowledge base"]
+    if parent:
+        cmd[3:3] = ["-p", parent]
+    rc, commit, err = run_cmd(cmd, cwd=cwd)
+    if rc != 0:
+        return False, f"Commit failed: {err}"
+
+    rc, _, err = run_cmd(["git", "update-ref", f"refs/heads/{branch}", commit], cwd=cwd)
+    if rc != 0:
+        return False, f"Could not update branch '{branch}': {err}"
+
+    rc, _, err = run_cmd(["git", "push", "origin", f"refs/heads/{branch}:refs/heads/{branch}"], cwd=cwd)
+    if rc != 0:
+        return False, f"Push failed: {err}"
+
+    return True, f"Knowledge base pushed to branch '{branch}' ({len(files)} files)."
 
 
 def git_branch_pull(cwd, branch):
     """Pull .hody/knowledge/ from a dedicated git branch."""
     kb_path = get_kb_path(cwd)
 
-    # Fetch the branch
     rc, _, err = run_cmd(["git", "fetch", "origin", branch], cwd=cwd)
     if rc != 0:
         return False, f"Fetch failed: {err}. Does branch '{branch}' exist on remote?"
 
-    # Extract KB files from the branch
+    # Every .md on the branch -- push sends all KB .md files (specs, logs, ...),
+    # so pull must not be limited to the six template files.
+    rc, listing, err = run_cmd(["git", "ls-tree", "--name-only", f"origin/{branch}"], cwd=cwd)
+    if rc != 0:
+        return False, f"Could not list branch '{branch}': {err}"
+    names = [n for n in listing.splitlines() if n.endswith(".md")]
+
     os.makedirs(kb_path, exist_ok=True)
     pulled = 0
-    for fname in KB_FILES:
-        rc, content, _ = run_cmd(
-            ["git", "show", f"origin/{branch}:{fname}"],
-            cwd=cwd,
-        )
-        if rc == 0 and content:
-            dest = os.path.join(kb_path, fname)
-            with open(dest, "w") as f:
+    for fname in names:
+        rc, content, _ = run_cmd(["git", "show", f"origin/{branch}:{fname}"], cwd=cwd)
+        if rc == 0:
+            with open(os.path.join(kb_path, fname), "w") as f:
                 f.write(content + "\n")
             pulled += 1
 
@@ -154,34 +177,38 @@ def gist_push(cwd, gist_id=None):
     """Push .hody/knowledge/ to a GitHub Gist."""
     kb_path = get_kb_path(cwd)
 
-    # Check gh CLI
     rc, _, _ = run_cmd(["gh", "auth", "status"])
     if rc != 0:
         return False, "GitHub CLI not authenticated. Run 'gh auth login' first."
 
-    # Build file args
-    file_args = []
-    for fname in os.listdir(kb_path):
-        if fname.endswith(".md"):
-            file_args.extend(["-f", f"{fname}=@{os.path.join(kb_path, fname)}"])
-
-    if not file_args:
+    files = _kb_md_files(kb_path)
+    if not files:
         return False, "No knowledge base files to push."
 
-    if gist_id:
-        # Update existing gist
-        cmd = ["gh", "gist", "edit", gist_id] + file_args
-        rc, out, err = run_cmd(cmd, cwd=cwd)
-        if rc != 0:
-            return False, f"Gist update failed: {err}"
-        return True, f"Knowledge base updated in gist {gist_id}."
-    else:
-        # Create new gist
-        cmd = ["gh", "gist", "create", "--desc", "Hody Workflow Knowledge Base"] + file_args
-        rc, out, err = run_cmd(cmd, cwd=cwd)
+    if not gist_id:
+        # `gh gist create` takes the files as positional arguments.
+        cmd = ["gh", "gist", "create", "--desc", "Hody Workflow Knowledge Base"] + files
+        rc, out, err = run_cmd(cmd, cwd=kb_path)
         if rc != 0:
             return False, f"Gist creation failed: {err}"
         return True, f"Knowledge base pushed to new gist: {out}"
+
+    # `gh gist edit` changes one file per call: replace existing files with
+    # `--filename <name> <local>`, add new ones with `--add <local>`.
+    rc, existing, err = run_cmd(["gh", "gist", "view", gist_id, "--files"], cwd=kb_path)
+    if rc != 0:
+        return False, f"Could not read gist {gist_id}: {err}"
+    existing = set(existing.split())
+
+    for fname in files:
+        if fname in existing:
+            cmd = ["gh", "gist", "edit", gist_id, "--filename", fname, fname]
+        else:
+            cmd = ["gh", "gist", "edit", gist_id, "--add", fname]
+        rc, _, err = run_cmd(cmd, cwd=kb_path)
+        if rc != 0:
+            return False, f"Gist update failed on {fname}: {err}"
+    return True, f"Knowledge base updated in gist {gist_id} ({len(files)} files)."
 
 
 def gist_pull(cwd, gist_id):
@@ -194,14 +221,15 @@ def gist_pull(cwd, gist_id):
 
     # Clone gist to temp dir
     with tempfile.TemporaryDirectory() as tmpdir:
-        rc, _, err = run_cmd(["gh", "gist", "clone", gist_id, tmpdir])
+        target = os.path.join(tmpdir, "gist")
+        rc, _, err = run_cmd(["gh", "gist", "clone", gist_id, target])
         if rc != 0:
             return False, f"Gist clone failed: {err}"
 
         pulled = 0
-        for fname in os.listdir(tmpdir):
+        for fname in os.listdir(target):
             if fname.endswith(".md") and not fname.startswith("."):
-                shutil.copy2(os.path.join(tmpdir, fname), os.path.join(kb_path, fname))
+                shutil.copy2(os.path.join(target, fname), os.path.join(kb_path, fname))
                 pulled += 1
 
     if pulled == 0:

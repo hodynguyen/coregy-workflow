@@ -16,7 +16,7 @@ Auto-detect project tech stack and generate `.hody/profile.yaml`.
 ## Usage
 
 ```bash
-python3 ${SKILL_ROOT}/scripts/detect_stack.py --cwd <project-root>
+python3 ${CLAUDE_PLUGIN_ROOT}/skills/project-profile/scripts/detect_stack.py --cwd <project-root>
 ```
 
 ### Options

@@ -236,3 +236,45 @@ class TestActualContracts(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class TestHandoffScopedToWorkflow(unittest.TestCase):
+    """During an active workflow, sections from other features must not count."""
+
+    CONTRACT = {
+        "required_sections": [{"name": "Test Strategy"}],
+        "validation": [{"check": "kb_file_modified", "file": "api-contracts.md",
+                        "message": "update api-contracts"}],
+    }
+
+    def _state(self, created_at="2000-01-01T00:00:00Z"):
+        return {"status": "in_progress", "created_at": created_at,
+                "log_file": "log-new.md", "spec_file": "spec-new.md"}
+
+    def test_section_from_old_feature_does_not_satisfy(self):
+        from contracts import validate_handoff
+        with tempfile.TemporaryDirectory() as kb:
+            with open(os.path.join(kb, "log-old.md"), "w") as f:
+                f.write("## Handoff\n### Test Strategy\nold\n")
+            with open(os.path.join(kb, "log-new.md"), "w") as f:
+                f.write("# Feature Log\n")
+            result = validate_handoff(self.CONTRACT, kb, state=self._state())
+            self.assertTrue(any("Test Strategy" in w for w in result["warnings"]))
+
+    def test_section_in_current_log_satisfies(self):
+        from contracts import validate_handoff
+        with tempfile.TemporaryDirectory() as kb:
+            with open(os.path.join(kb, "log-new.md"), "w") as f:
+                f.write("## Handoff: backend -> unit-tester\n### Test Strategy\nx\n")
+            result = validate_handoff(self.CONTRACT, kb, state=self._state())
+            self.assertFalse(any("Test Strategy" in w for w in result["warnings"]))
+
+    def test_kb_file_not_touched_since_workflow_start(self):
+        from contracts import validate_handoff
+        with tempfile.TemporaryDirectory() as kb:
+            with open(os.path.join(kb, "api-contracts.md"), "w") as f:
+                f.write("# API\n\nline one\nline two\nline three\n")
+            state = self._state(created_at="2999-01-01T00:00:00Z")
+            result = validate_handoff(self.CONTRACT, kb, state=state)
+            self.assertTrue(any("Not updated in this workflow" in w
+                                for w in result["warnings"]))

@@ -198,7 +198,7 @@ class TestGraphifyHookInjection(unittest.TestCase):
         with tempfile.TemporaryDirectory() as tmpdir:
             self._setup_project(tmpdir)
             output = self._run_hook(tmpdir)
-            msg = output.get("systemMessage", "")
+            msg = output.get("hookSpecificOutput", {}).get("additionalContext", "")
             self.assertNotIn("Graphify", msg)
 
     def test_graph_present_injects_summary(self):
@@ -215,7 +215,7 @@ class TestGraphifyHookInjection(unittest.TestCase):
                 json.dump(graph_data, f)
 
             output = self._run_hook(tmpdir)
-            msg = output.get("systemMessage", "")
+            msg = output.get("hookSpecificOutput", {}).get("additionalContext", "")
             self.assertIn("Graphify: 3 nodes, 1 edges", msg)
             self.assertIn("query_graph", msg)
 
@@ -233,7 +233,7 @@ class TestGraphifyHookInjection(unittest.TestCase):
                 json.dump(graph_data, f)
 
             output = self._run_hook(tmpdir)
-            msg = output.get("systemMessage", "")
+            msg = output.get("hookSpecificOutput", {}).get("additionalContext", "")
             self.assertIn("Graphify: 2 nodes, 1 edges", msg)
 
     def test_empty_graph_no_injection(self):
@@ -247,7 +247,7 @@ class TestGraphifyHookInjection(unittest.TestCase):
                 json.dump(graph_data, f)
 
             output = self._run_hook(tmpdir)
-            msg = output.get("systemMessage", "")
+            msg = output.get("hookSpecificOutput", {}).get("additionalContext", "")
             self.assertNotIn("Graphify", msg)
 
     def test_corrupt_graph_no_crash(self):
@@ -260,7 +260,7 @@ class TestGraphifyHookInjection(unittest.TestCase):
                 f.write("NOT VALID JSON{{{")
 
             output = self._run_hook(tmpdir)
-            msg = output.get("systemMessage", "")
+            msg = output.get("hookSpecificOutput", {}).get("additionalContext", "")
             self.assertNotIn("Graphify", msg)
             # Should still have profile info
             self.assertIn("Hody Workflow", msg)

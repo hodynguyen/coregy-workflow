@@ -63,20 +63,38 @@ For each finding:
 
 ## Knowledge Base Update
 
-When writing new sections to KB files, include YAML frontmatter at the top of each new entry:
+YAML frontmatter is only valid at the very top of a file. If the KB file you write to has
+none yet, add it there (`tags`, `created`, `author_agent: spec-verifier`, `status: active`). For each
+new section you append, put a one-line metadata comment directly under its heading instead —
+never a second `---` block mid-file (Markdown renders it as a heading and the index ignores it):
 
 ```markdown
----
-tags: [relevant, topic, tags]
-created: YYYY-MM-DD
-author_agent: spec-verifier
-status: active
----
+## <Section title>
+<!-- author_agent: spec-verifier | created: YYYY-MM-DD | tags: relevant, topic, tags -->
 ```
 
 After verification:
 - Spec gaps found → note in `api-contracts.md` or `business-rules.md`
 - Implementation deviations accepted → document in `decisions.md`
+
+## Handoff
+
+When a workflow is active (`.hody/state.json` has `status: in_progress`), append this
+section to the feature log (`.hody/knowledge/<log_file>`) before marking yourself complete.
+The downstream agent's contract check (`contracts.py validate`) looks for exactly these
+headings in the current workflow's log/spec:
+
+```markdown
+## Handoff: spec-verifier -> code-reviewer
+### Spec Compliance Checklist
+<...>
+### Deviations
+<...>
+### Missing Implementations
+<...>
+```
+
+Skip it when there is no active workflow.
 
 ## MCP Tools
 

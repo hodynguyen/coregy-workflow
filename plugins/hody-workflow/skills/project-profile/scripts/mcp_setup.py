@@ -5,8 +5,9 @@ Linear) in .claude/settings.json without manual JSON editing.
 Each integration has a registered spec describing its required fields,
 the MCP server command, and how to map fields to env vars. The CLI
 accepts those fields as args, validates them, merges the resulting
-server config into .claude/settings.json (preserving other entries),
-and flips integrations.<name>: true in .hody/profile.yaml.
+server where Claude Code reads it (local scope via `claude mcp`, else
+.mcp.json -- see mcp_config.py), and flips integrations.<name>: true in
+.hody/profile.yaml.
 
 Usage:
   mcp_setup.py jira --api-token X --site Y --email Z
@@ -22,12 +23,19 @@ import os
 import re
 import sys
 
+try:
+    from . import mcp_config
+except ImportError:
+    import mcp_config
+
 
 # =====================================================================
 # Integration specs
 # =====================================================================
 
 INTEGRATIONS = {
+    # sooperset/mcp-atlassian (PyPI `mcp-atlassian`, run with uvx). The
+    # previously configured `@anthropic/mcp-server-atlassian` does not exist.
     "jira": {
         "fields": [
             {
@@ -38,96 +46,62 @@ INTEGRATIONS = {
             },
             {
                 "name": "site",
-                "env": "JIRA_BASE_URL",
+                "env": "JIRA_URL",
                 "description": "Your Jira site URL",
                 "guide": "e.g. https://your-org.atlassian.net (no trailing slash)",
             },
             {
                 "name": "email",
-                "env": "JIRA_USER_EMAIL",
+                "env": "JIRA_USERNAME",
                 "description": "Atlassian account email",
                 "guide": "The email you log into Atlassian with",
             },
         ],
         "server": {
-            "command": "npx",
-            "args": ["-y", "@anthropic/mcp-server-atlassian"],
+            "command": "uvx",
+            "args": ["mcp-atlassian"],
         },
     },
+    # Linear's official hosted MCP server; an API key is sent as a bearer
+    # token. `@modelcontextprotocol/server-linear` does not exist.
     "linear": {
         "fields": [
             {
                 "name": "api-key",
-                "env": "LINEAR_API_KEY",
+                "header": "Authorization",
+                "header_format": "Bearer {}",
                 "description": "Linear API key",
                 "guide": "Create at Linear → Settings → API → Personal API keys",
             },
         ],
         "server": {
-            "command": "npx",
-            "args": ["-y", "@modelcontextprotocol/server-linear"],
+            "type": "http",
+            "url": "https://mcp.linear.app/mcp",
         },
     },
+    # GitHub's official remote MCP server. `@modelcontextprotocol/server-github`
+    # is deprecated on npm.
     "github": {
         "fields": [
             {
                 "name": "token",
-                "env": "GITHUB_PERSONAL_ACCESS_TOKEN",
+                "header": "Authorization",
+                "header_format": "Bearer {}",
                 "description": "GitHub Personal Access Token",
                 "guide": "Create at https://github.com/settings/tokens (scopes: repo, read:org)",
             },
         ],
         "server": {
-            "command": "npx",
-            "args": ["-y", "@modelcontextprotocol/server-github"],
+            "type": "http",
+            "url": "https://api.githubcopilot.com/mcp/",
         },
     },
 }
 
 
 # =====================================================================
-# Settings.json read/write
+# Where servers are written: see mcp_config.py
 # =====================================================================
-
-def _settings_path(cwd):
-    return os.path.join(cwd, ".claude", "settings.json")
-
-
-def load_settings(cwd):
-    path = _settings_path(cwd)
-    if not os.path.isfile(path):
-        return {}
-    try:
-        with open(path, "r") as f:
-            return json.load(f)
-    except (json.JSONDecodeError, OSError):
-        return {}
-
-
-def save_settings(cwd, settings):
-    path = _settings_path(cwd)
-    os.makedirs(os.path.dirname(path), exist_ok=True)
-    with open(path, "w") as f:
-        json.dump(settings, f, indent=2)
-        f.write("\n")
-
-
-def merge_mcp_server(settings, name, server_config):
-    """Merge a server entry into settings.mcpServers without clobbering siblings."""
-    if "mcpServers" not in settings or not isinstance(settings["mcpServers"], dict):
-        settings["mcpServers"] = {}
-    settings["mcpServers"][name] = server_config
-    return settings
-
-
-def remove_mcp_server(settings, name):
-    """Drop a single server entry; return True if it existed."""
-    servers = settings.get("mcpServers")
-    if not isinstance(servers, dict) or name not in servers:
-        return False
-    del servers[name]
-    return True
-
 
 # =====================================================================
 # profile.yaml integration flag
@@ -219,23 +193,27 @@ def collect_missing(name, provided):
 def build_server_config(name, values):
     """Build the MCP server JSON entry from collected field values."""
     spec = get_spec(name)
-    server = {
-        "command": spec["server"]["command"],
-        "args": list(spec["server"]["args"]),
-    }
+    server = {k: (list(v) if isinstance(v, list) else v)
+              for k, v in spec["server"].items()}
     env = {}
+    headers = {}
     for field in spec["fields"]:
         key = field["name"]
         if key not in values or values[key] in (None, ""):
             raise ValueError(f"Missing required field: --{key}")
-        env[field["env"]] = values[key]
+        if "header" in field:
+            headers[field["header"]] = field.get("header_format", "{}").format(values[key])
+        else:
+            env[field["env"]] = values[key]
     if env:
         server["env"] = env
+    if headers:
+        server["headers"] = headers
     return server
 
 
 def configure(cwd, name, values):
-    """Apply settings + profile updates for an integration. Returns summary."""
+    """Register the integration's MCP server + flip the profile flag."""
     spec = get_spec(name)
     missing = collect_missing(name, values)
     if missing:
@@ -245,14 +223,13 @@ def configure(cwd, name, values):
         )
 
     server_config = build_server_config(name, values)
-    settings = load_settings(cwd)
-    merge_mcp_server(settings, name, server_config)
-    save_settings(cwd, settings)
+    registered = mcp_config.register_server(cwd, name, server_config)
     profile_updated = update_profile_integration(cwd, name, enabled=True)
 
     return {
         "integration": name,
-        "settings_path": _settings_path(cwd),
+        "location": registered["location"],
+        "warning": registered["warning"],
         "profile_updated": profile_updated,
         "fields_used": [f["name"] for f in spec["fields"]],
         "restart_required": True,
@@ -262,22 +239,17 @@ def configure(cwd, name, values):
 def remove(cwd, name):
     """Remove the MCP server entry and flip profile flag back to false."""
     get_spec(name)  # validate name
-    settings = load_settings(cwd)
-    removed = remove_mcp_server(settings, name)
-    if removed:
-        save_settings(cwd, settings)
+    removed = mcp_config.unregister_server(cwd, name)
     profile_updated = update_profile_integration(cwd, name, enabled=False)
     return {
         "integration": name,
-        "removed_from_settings": removed,
+        "removed": removed,
         "profile_updated": profile_updated,
     }
 
 
 def status(cwd):
     """Return current configuration state for all known integrations."""
-    settings = load_settings(cwd)
-    servers = settings.get("mcpServers", {}) or {}
     profile_path = os.path.join(cwd, ".hody", "profile.yaml")
     profile_text = ""
     if os.path.isfile(profile_path):
@@ -286,16 +258,18 @@ def status(cwd):
 
     result = {}
     for name in INTEGRATIONS:
-        in_settings = name in servers
+        location = mcp_config.server_location(cwd, name)
         match = re.search(
             rf"^\s*{re.escape(name)}:\s*(true|false)\s*$",
             profile_text,
             re.MULTILINE,
         )
-        profile_flag = match.group(1) if match else None
         result[name] = {
-            "configured_in_settings": in_settings,
-            "profile_flag": profile_flag,
+            # "legacy" = the old .claude/settings.json entry Claude Code never
+            # read; re-run configure to move it.
+            "configured": location not in (None, "legacy"),
+            "location": location,
+            "profile_flag": match.group(1) if match else None,
         }
     return result
 
@@ -343,30 +317,33 @@ def cmd_fields(args):
 
 
 def main(argv=None):
-    parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--cwd", default=os.getcwd(), help="Project root")
+    parent = argparse.ArgumentParser(add_help=False)
+    # SUPPRESS so --cwd works before or after the subcommand (hody-cli-v1).
+    parent.add_argument("--cwd", default=argparse.SUPPRESS, help="Project root")
+    parser = argparse.ArgumentParser(description=__doc__, parents=[parent])
     sub = parser.add_subparsers(dest="cmd", required=True)
 
     # Per-integration configure subcommands
     for name in INTEGRATIONS:
-        p = sub.add_parser(name, help=f"Configure {name} MCP server")
+        p = sub.add_parser(name, parents=[parent], help=f"Configure {name} MCP server")
         _add_field_args(p, name)
         p.set_defaults(func=cmd_configure, integration=name)
 
-    p_remove = sub.add_parser("remove", help="Remove an integration")
+    p_remove = sub.add_parser("remove", parents=[parent], help="Remove an integration")
     p_remove.add_argument("integration", choices=list(INTEGRATIONS))
     p_remove.set_defaults(func=cmd_remove)
 
-    p_status = sub.add_parser("status", help="Show integration status")
+    p_status = sub.add_parser("status", parents=[parent], help="Show integration status")
     p_status.set_defaults(func=cmd_status)
 
     p_fields = sub.add_parser(
-        "fields", help="Describe required fields (JSON for guides)"
+        "fields", parents=[parent], help="Describe required fields (JSON for guides)"
     )
     p_fields.add_argument("integration", choices=list(INTEGRATIONS))
     p_fields.set_defaults(func=cmd_fields)
 
     args = parser.parse_args(argv)
+    args.cwd = os.path.abspath(getattr(args, "cwd", os.getcwd()))
     try:
         args.func(args)
     except ValueError as e:

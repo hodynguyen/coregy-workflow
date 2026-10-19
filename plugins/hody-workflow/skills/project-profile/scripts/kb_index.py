@@ -119,8 +119,10 @@ def build_file_entry(filepath):
 
     if fm:
         entry["tags"] = fm.get("tags", []) or []
-        entry["author_agent"] = fm.get("author_agent")
-        entry["created"] = fm.get("created")
+        # Hyphen/`date` spellings were written by start-feature and state.py
+        # before v0.13.1; accept them so existing spec/log files stay indexed.
+        entry["author_agent"] = fm.get("author_agent") or fm.get("author-agent")
+        entry["created"] = fm.get("created") or fm.get("date")
         entry["status"] = fm.get("status", "active")
         entry["supersedes"] = fm.get("supersedes")
 

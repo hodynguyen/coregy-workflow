@@ -783,29 +783,37 @@ def sync_workflow_status(cwd, state=None):
     now = _now()
     session_id = ensure_session(cwd)
 
-    # Check if transition is valid; if not, skip silently
-    if not schema.validate_transition(item_type, current_status, new_status):
+    # Route through in_progress when the item never left `created` (e.g. a
+    # workflow completed or aborted before any agent started). Invalid
+    # transitions are skipped silently.
+    if schema.validate_transition(item_type, current_status, new_status):
+        steps = [new_status]
+    elif (current_status == "created"
+          and schema.validate_transition(item_type, "created", "in_progress")
+          and schema.validate_transition(item_type, "in_progress", new_status)):
+        steps = ["in_progress", new_status]
+    else:
         conn.close()
         return
 
-    # Check terminal state
     terminal = TERMINAL_STATES.get(item_type, set())
-    completed_at = now if new_status in terminal else None
-
-    conn.execute(
-        """UPDATE items
-           SET status = ?, updated_at = ?, completed_at = ?
-           WHERE id = ?""",
-        (new_status, now, completed_at, item_id)
-    )
-
-    conn.execute(
-        """INSERT INTO status_log
-           (item_id, from_status, to_status, changed_at, session_id, reason)
-           VALUES (?, ?, ?, ?, ?, ?)""",
-        (item_id, current_status, new_status, now, session_id,
-         "Synced from state.json")
-    )
+    from_status = current_status
+    for step in steps:
+        completed_at = now if step in terminal else None
+        conn.execute(
+            """UPDATE items
+               SET status = ?, updated_at = ?, completed_at = ?
+               WHERE id = ?""",
+            (step, now, completed_at, item_id)
+        )
+        conn.execute(
+            """INSERT INTO status_log
+               (item_id, from_status, to_status, changed_at, session_id, reason)
+               VALUES (?, ?, ?, ?, ?, ?)""",
+            (item_id, from_status, step, now, session_id,
+             "Synced from state.json")
+        )
+        from_status = step
 
     conn.commit()
     conn.close()
@@ -887,6 +895,11 @@ def main():
     list_p.add_argument("--all", action="store_true",
                         help="Show all items (no limit)")
 
+    # show
+    show_p = subparsers.add_parser("show", parents=[cwd_parent],
+                                   help="Show one item with its status history")
+    show_p.add_argument("id", help="Item ID")
+
     # history
     history_p = subparsers.add_parser("history", parents=[cwd_parent], help="Show item history")
     history_p.add_argument("id", help="Item ID")
@@ -936,6 +949,12 @@ def main():
         parser.print_help()
         sys.exit(1)
 
+    if args.command in ("update", "note", "show", "history", "search",
+                        "list") and not os.path.isfile(
+                            os.path.join(cwd, ".hody", "tracker.db")):
+        raise SystemExit("Error: .hody/tracker.db not found -- run "
+                         "`tracker.py init` or /hody-workflow:init first")
+
     if args.command == "init":
         schema.init_db(cwd)
         session_id = ensure_session(cwd)
@@ -964,7 +983,21 @@ def main():
         _output(item)
 
     elif args.command == "note":
-        item = update_item(cwd, item_id=args.id, notes=args.text)
+        # Append, never overwrite: a second note used to erase the first.
+        existing = get_item(cwd, args.id)
+        if existing is None:
+            raise SystemExit("Error: item not found: %s" % args.id)
+        entry = "[%s] %s" % (_now(), args.text)
+        notes = (existing.get("notes") or "").rstrip("\n")
+        item = update_item(cwd, item_id=args.id,
+                           notes=(notes + "\n" + entry) if notes else entry)
+        _output(item)
+
+    elif args.command == "show":
+        item = get_item(cwd, args.id)
+        if item is None:
+            raise SystemExit("Error: item not found: %s" % args.id)
+        item["history"] = get_item_history(cwd, args.id)
         _output(item)
 
     elif args.command == "search":

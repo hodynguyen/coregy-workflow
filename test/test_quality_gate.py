@@ -497,3 +497,100 @@ class TestQualityGateHookEndToEnd(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+# =====================================================================
+# Files staged by the same command
+#
+# PreToolUse fires before any part of `git add -A && git commit` runs, so the
+# index does not yet hold the files being committed. v0.13.0 scanned only the
+# index and let a hardcoded AWS key through on exactly that command.
+# =====================================================================
+
+HOOK = os.path.join(os.path.abspath(HOOK_DIR), "quality_gate.py")
+AWS_LINE = 'const k = "AKIA' + 'ABCDEFGHIJKLMNOP";\n'  # split: keep this file clean
+
+
+class TestAnalyzeCommitCommand(unittest.TestCase):
+    def test_add_before_commit(self):
+        from quality_gate import analyze_commit_command
+        info = analyze_commit_command('git add -A && git commit -m "x"')
+        self.assertEqual(info["add_args"], [["-A"]])
+        self.assertFalse(info["commit_all"])
+
+    def test_quoted_pathspec(self):
+        from quality_gate import analyze_commit_command
+        info = analyze_commit_command('git add "my file.js"; git commit -m x')
+        self.assertEqual(info["add_args"], [["my file.js"]])
+
+    def test_commit_all_flags(self):
+        from quality_gate import analyze_commit_command
+        for cmd in ("git commit -a -m x", "git commit --all", 'git commit -am "x"'):
+            self.assertTrue(analyze_commit_command(cmd)["commit_all"], cmd)
+        # -m's value is not a flag cluster
+        self.assertFalse(analyze_commit_command("git commit -mall")["commit_all"])
+
+    def test_add_after_commit_is_ignored(self):
+        from quality_gate import analyze_commit_command
+        info = analyze_commit_command("git commit -m x && git add -A")
+        self.assertEqual(info["add_args"], [])
+
+    def test_not_a_commit(self):
+        from quality_gate import analyze_commit_command
+        self.assertIsNone(analyze_commit_command('echo "git add -A && git commit"'))
+
+
+@unittest.skipUnless(shutil.which("git"), "git not installed")
+class TestGateSeesFilesStagedInSameCommand(unittest.TestCase):
+    def setUp(self):
+        self.tmp = tempfile.TemporaryDirectory()
+        self.cwd = self.tmp.name
+        self.git("init", "-q")
+        self.git("config", "user.email", "t@t")
+        self.git("config", "user.name", "t")
+        os.makedirs(os.path.join(self.cwd, ".hody"))
+        self.git("commit", "-q", "--allow-empty", "-m", "init")
+
+    def tearDown(self):
+        self.tmp.cleanup()
+
+    def git(self, *args):
+        subprocess.run(["git"] + list(args), cwd=self.cwd, check=True,
+                       capture_output=True)
+
+    def write(self, name, content):
+        with open(os.path.join(self.cwd, name), "w") as f:
+            f.write(content)
+
+    def decision(self, command):
+        payload = json.dumps({"tool_input": {"command": command}, "cwd": self.cwd})
+        env = dict(os.environ)
+        env.pop("HODY_SKIP_QUALITY_GATE", None)
+        out = subprocess.run([sys.executable, HOOK], input=payload, env=env,
+                             capture_output=True, text=True, timeout=30).stdout
+        if not out.strip():
+            return "no-op"
+        return json.loads(out)["hookSpecificOutput"].get("permissionDecision", "allow")
+
+    def test_add_all_then_commit_is_denied(self):
+        self.write("leak.js", AWS_LINE)
+        self.assertEqual(self.decision("git add -A && git commit -m x"), "deny")
+
+    def test_add_specific_clean_file_is_allowed(self):
+        self.write("leak.js", AWS_LINE)
+        self.write("clean.txt", "ok\n")
+        self.assertEqual(self.decision("git add clean.txt && git commit -m x"), "allow")
+
+    def test_commit_all_scans_modified_tracked_files(self):
+        self.write("app.js", "ok\n")
+        self.git("add", "app.js")
+        self.git("commit", "-q", "-m", "app")
+        self.write("app.js", AWS_LINE)
+        self.assertEqual(self.decision('git commit -am "x"'), "deny")
+        self.assertEqual(self.decision('git commit -m "x"'), "allow")
+
+    def test_staged_blob_is_scanned_not_working_tree(self):
+        self.write("app.js", AWS_LINE)
+        self.git("add", "app.js")
+        self.write("app.js", "clean now, but the key is still staged\n")
+        self.assertEqual(self.decision("git commit -m x"), "deny")

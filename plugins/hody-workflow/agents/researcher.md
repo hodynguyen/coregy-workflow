@@ -23,7 +23,7 @@ Adapt research focus based on profile:
 - If `frontend.framework` exists → Research frontend-specific patterns, component libraries, state management
 - If `backend.framework` exists → Research backend patterns, middleware, ORM/database drivers
 - If `devops.ci` exists → Research CI/CD best practices for the specific platform
-- If `devops.containerization` is `docker` → Research container optimization, orchestration
+- If `devops.containerize` is `docker` → Research container optimization, orchestration
 - Always consider the project's language and ecosystem when recommending solutions
 
 ## Responsibilities
@@ -48,15 +48,14 @@ Adapt research focus based on profile:
 
 ## Knowledge Base Update
 
-When writing new sections to KB files, include YAML frontmatter at the top of each new entry:
+YAML frontmatter is only valid at the very top of a file. If the KB file you write to has
+none yet, add it there (`tags`, `created`, `author_agent: researcher`, `status: active`). For each
+new section you append, put a one-line metadata comment directly under its heading instead —
+never a second `---` block mid-file (Markdown renders it as a heading and the index ignores it):
 
 ```markdown
----
-tags: [relevant, topic, tags]
-created: YYYY-MM-DD
-author_agent: researcher
-status: active
----
+## <Section title>
+<!-- author_agent: researcher | created: YYYY-MM-DD | tags: relevant, topic, tags -->
 ```
 
 After completing research:

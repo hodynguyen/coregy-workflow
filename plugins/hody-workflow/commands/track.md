@@ -16,7 +16,7 @@ Parse the section above as a tracker subcommand:
 - `update <item_id> [status:x notes:y]` → update existing item
 - `search <query> [type:x tag:y]` → search items
 - `show <item_id>` → show full item details + history
-- `close <item_id>` → transition to terminal state (completed/resolved/answered)
+- `close <item_id>` → transition to terminal state (completed/resolved/answered) — items still in their initial state need two `update` calls (e.g. task `created` → `in_progress` → `completed`)
 
 If empty, show available subcommands and ask the user what they want to do.
 
@@ -72,6 +72,8 @@ python3 ${CLAUDE_PLUGIN_ROOT}/skills/project-profile/scripts/tracker.py update <
 
 ### Add a note
 
+Notes are appended with a timestamp; earlier notes are kept.
+
 ```bash
 python3 ${CLAUDE_PLUGIN_ROOT}/skills/project-profile/scripts/tracker.py note <item_id> "<note text>" --cwd .
 ```
@@ -84,6 +86,12 @@ python3 ${CLAUDE_PLUGIN_ROOT}/skills/project-profile/scripts/tracker.py search \
   --status <status> \
   --tags "<tags>" \
   --cwd .
+```
+
+### Show one item (details + status history)
+
+```bash
+python3 ${CLAUDE_PLUGIN_ROOT}/skills/project-profile/scripts/tracker.py show <item_id> --cwd .
 ```
 
 ### List active

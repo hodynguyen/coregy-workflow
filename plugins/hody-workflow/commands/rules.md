@@ -96,6 +96,9 @@ If empty, default to "show".
    python3 ${CLAUDE_PLUGIN_ROOT}/skills/project-profile/scripts/rules.py init --cwd .
    ```
 
+   Exit 1 means the file already exists and was left untouched. Only after the user
+   confirmed the overwrite in step 1, re-run with `--force`.
+
 3. Show the created file and guide the user:
    ```
    Created .hody/rules.yaml with commented template.

@@ -212,6 +212,18 @@ def _rotate_previous_graph(cwd):
             pass
 
 
+def _restore_previous_graph(cwd):
+    """Undo _rotate_previous_graph() after a failed build, so a failed rebuild
+    never leaves the project without its last good graph.json."""
+    graph_path = os.path.join(cwd, "graphify-out", "graph.json")
+    prev_path = os.path.join(cwd, "graphify-out", "graph.prev.json")
+    if not os.path.isfile(graph_path) and os.path.isfile(prev_path):
+        try:
+            os.rename(prev_path, graph_path)
+        except OSError:
+            pass
+
+
 def build_graph(python_path, cwd):
     """Build the Graphify knowledge graph.  Returns (nodes, edges) or None."""
     _rotate_previous_graph(cwd)
@@ -224,46 +236,43 @@ def build_graph(python_path, cwd):
         )
         if result.returncode != 0:
             print("ERROR: Graph build failed:\n" + result.stderr, file=sys.stderr)
+            _restore_previous_graph(cwd)
             return None
         info = json.loads(result.stdout.strip())
         return info["nodes"], info["edges"]
     except (OSError, subprocess.TimeoutExpired, json.JSONDecodeError, KeyError) as exc:
         print("ERROR: Graph build failed: %s" % exc, file=sys.stderr)
+        _restore_previous_graph(cwd)
         return None
 
 
 # ---------------------------------------------------------------------------
-# Step 4: Configure MCP server in .claude/settings.json
+# Step 4: Register the MCP server (see mcp_config.py)
 # ---------------------------------------------------------------------------
 
 
 def update_claude_settings(cwd, python_path):
-    """Add or update the graphify MCP server entry in .claude/settings.json."""
-    settings_dir = os.path.join(cwd, ".claude")
-    settings_path = os.path.join(settings_dir, "settings.json")
+    """Register the graphify MCP server where Claude Code reads it.
 
-    settings = {}
-    if os.path.isfile(settings_path):
-        try:
-            with open(settings_path, "r") as f:
-                settings = json.load(f)
-        except (json.JSONDecodeError, OSError):
-            settings = {}
+    Name kept for compatibility; before v0.13.1 this wrote `mcpServers` into
+    .claude/settings.json, which Claude Code never loads.
+    """
+    script_dir = os.path.dirname(os.path.abspath(__file__))
+    if script_dir not in sys.path:
+        sys.path.insert(0, script_dir)
+    import mcp_config
 
-    if "mcpServers" not in settings:
-        settings["mcpServers"] = {}
-
-    settings["mcpServers"]["graphify"] = {
+    config = {
         "command": python_path,
-        "args": ["-m", "graphify.serve", "graphify-out/graph.json"],
+        # absolute path: the server must not depend on the cwd it starts in
+        "args": ["-m", "graphify.serve",
+                 os.path.join(os.path.abspath(cwd), "graphify-out", "graph.json")],
     }
-
-    os.makedirs(settings_dir, exist_ok=True)
-    with open(settings_path, "w") as f:
-        json.dump(settings, f, indent=2)
-        f.write("\n")
-
-    print("MCP server configured in .claude/settings.json")
+    result = mcp_config.register_server(cwd, "graphify", config)
+    print("MCP server registered: %s" % result["location"])
+    if result.get("warning"):
+        print("WARNING: %s" % result["warning"])
+    return result
 
 
 # ---------------------------------------------------------------------------
@@ -487,7 +496,7 @@ def main():
     print("")
     print("Graphify setup complete!")
     print("  Graph: %d nodes, %d edges" % (nodes, edges))
-    print("  MCP: .claude/settings.json configured")
+    print("  MCP: graphify server registered")
     print("  Profile: integrations.graphify = true")
     print("")
     print("WARNING: Restart Claude Code to activate the MCP server.")

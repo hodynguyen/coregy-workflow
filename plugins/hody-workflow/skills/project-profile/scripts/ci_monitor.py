@@ -75,7 +75,7 @@ def get_ci_status(cwd):
 
     output, ok = _run_gh(
         ["run", "list", "--branch", branch, "--limit", "5",
-         "--json", "status,conclusion,name,url,headBranch"],
+         "--json", "databaseId,status,conclusion,name,url,headBranch"],
         cwd=cwd,
     )
     if not ok or not output:
@@ -90,6 +90,7 @@ def get_ci_status(cwd):
     overall_status = "unknown"
     for run in runs:
         check = {
+            "id": run.get("databaseId"),
             "name": run.get("name", ""),
             "status": run.get("status", ""),
             "conclusion": run.get("conclusion", ""),
@@ -402,13 +403,21 @@ def run_ci_feedback(cwd):
     tech_debt_updated = False
 
     if ci_status["status"] == "failure":
-        # Try to get logs from the latest failed run
-        log_output, ok = _run_gh(
-            ["run", "view", "--log-failed", "--branch", ci_status["branch"]],
-            cwd=cwd, timeout=60,
-        )
-        if ok and log_output:
-            failures = parse_test_failures(log_output)
+        # `gh run view` takes a run id -- it has no --branch flag, so the id
+        # of the latest failed run comes from the `run list` probe above.
+        failed_id = None
+        for check in ci_status.get("checks", []):
+            conclusion = (check.get("conclusion") or "").lower()
+            if conclusion in ("failure", "timed_out") and check.get("id"):
+                failed_id = check["id"]
+                break
+        if failed_id is not None:
+            log_output, ok = _run_gh(
+                ["run", "view", str(failed_id), "--log-failed"],
+                cwd=cwd, timeout=60,
+            )
+            if ok and log_output:
+                failures = parse_test_failures(log_output)
 
         if failures:
             create_tech_debt_entry(cwd, failures, ci_status)

@@ -377,6 +377,38 @@ class TestArchiveFile(unittest.TestCase):
         archive_file(path, threshold=500)
         self.assertTrue(os.path.isdir(archive_dir))
 
+    def test_topical_file_keeps_undated_sections(self):
+        # architecture.md is organised by topic: "Section 1" (think "System
+        # Overview") must never be archived just for being first.
+        path = self._make_big_file("architecture.md", num_sections=8, lines_per_section=80)
+        self.assertIsNone(archive_file(path, threshold=500, keep_sections=3))
+        with open(path) as f:
+            self.assertIn("## Section 1\n", f.read())
+
+    def test_dated_sections_archived_oldest_first(self):
+        path = os.path.join(self.kb_dir, "architecture.md")
+        content = "# Architecture\n\n## System Overview\n" + "core\n" * 100
+        for day in ("2026-03-01", "2026-01-01", "2026-02-01", "2026-04-01", "2026-05-01"):
+            content += "## Update\n<!-- created: %s -->\n" % day + "x\n" * 100
+        with open(path, "w") as f:
+            f.write(content)
+        result = archive_file(path, threshold=500, keep_sections=3)
+        self.assertEqual(result["archived_sections"], 2)
+        with open(path) as f:
+            remaining = f.read()
+        self.assertIn("## System Overview", remaining)
+        self.assertNotIn("2026-01-01", remaining)
+        self.assertNotIn("2026-02-01", remaining)
+        self.assertIn("2026-03-01", remaining)
+
+    def test_heading_inside_code_fence_is_not_a_section(self):
+        path = os.path.join(self.kb_dir, "decisions.md")
+        content = "# D\n\n## ADR-1\n```md\n## not a heading\n```\n" + "x\n" * 600
+        with open(path, "w") as f:
+            f.write(content)
+        # one real section only -> nothing to archive
+        self.assertIsNone(archive_file(path, threshold=500, keep_sections=1))
+
 
 class TestCheckAllKBFiles(unittest.TestCase):
     def setUp(self):

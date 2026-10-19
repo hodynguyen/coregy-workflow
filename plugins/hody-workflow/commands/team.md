@@ -84,5 +84,5 @@ DENIED: Role 'developer' cannot skip agents.
 - **Never chain `check-agent` / `check-workflow` under `&&` or `set -e`** — they exit 1 on
   denial, which would abort the surrounding command
 - User identity: `$HODY_USER` env var, else `git config user.name`
-- Unlisted users default to the `developer` role
+- With no `members:` configured (solo project) everyone is `lead`; once members are listed, unlisted users default to `developer`
 - `.hody/team.yaml` should be committed so the whole team shares the same roles

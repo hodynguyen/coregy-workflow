@@ -123,7 +123,7 @@ This creates `.hody/tracker.db` (idempotent — safe to run multiple times). The
 
 The database is local-only and should be added to `.gitignore`.
 
-If the project already has a `.hody/state.json` from a previous workflow, also run migration:
+If the project already has a `.hody/state.json` from a previous workflow, also run migration (idempotent — a workflow already in the tracker is returned with `already_migrated: true`, not duplicated):
 ```bash
 python3 ${CLAUDE_PLUGIN_ROOT}/skills/project-profile/scripts/tracker.py migrate --cwd .
 ```
@@ -134,6 +134,8 @@ python3 ${CLAUDE_PLUGIN_ROOT}/skills/project-profile/scripts/tracker.py migrate 
 python3 ${CLAUDE_PLUGIN_ROOT}/skills/project-profile/scripts/rules.py init --cwd .
 ```
 
+Exit 1 with "already exists" is expected on re-init — the user's rules are left untouched; do not pass `--force`.
+
 This creates a template with all rule categories (coding, architecture, testing, workflow, custom) as commented-out examples. Users can uncomment and customize the rules relevant to their project. The file is optional — agents work normally without it.
 
 8. **Build knowledge graph (optional)**: If the user passes `--graph` (e.g., `/init --graph` or the $ARGUMENTS contain "graph"), build the Graphify knowledge graph after profile detection:
@@ -142,7 +144,7 @@ This creates a template with all rule categories (coding, architecture, testing,
 python3 ${CLAUDE_PLUGIN_ROOT}/skills/project-profile/scripts/graphify_setup.py --cwd .
 ```
 
-This runs the automated Graphify setup: finds Python >= 3.10, installs `graphifyy` if missing, builds the AST-based graph into `graphify-out/graph.json`, configures the MCP server in `.claude/settings.json`, updates `integrations.graphify: true` in profile.yaml, adds `graphify-out/` to `.gitignore`, and enriches `.hody/knowledge/architecture.md` with graph-derived module boundaries, cross-module coupling data, and god nodes.
+This runs the automated Graphify setup: finds Python >= 3.10, installs `graphifyy` if missing, builds the AST-based graph into `graphify-out/graph.json`, registers the graphify MCP server (local scope via `claude mcp add-json`, or `.mcp.json` when the `claude` CLI is unavailable), updates `integrations.graphify: true` in profile.yaml, adds `graphify-out/` to `.gitignore`, and enriches `.hody/knowledge/architecture.md` with graph-derived module boundaries, cross-module coupling data, and god nodes.
 
 After the script completes, tell the user to restart Claude Code to activate the Graphify MCP server.
 

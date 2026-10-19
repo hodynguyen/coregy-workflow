@@ -15,6 +15,7 @@ Skip with HODY_SKIP_QUALITY_GATE=1 env var.
 import json
 import os
 import re
+import shlex
 import subprocess
 import sys
 
@@ -145,38 +146,61 @@ def check_file(cwd, filepath):
     return issues
 
 
-def check_file_v2(cwd, filepath):
+def _read_index_content(cwd, filepath):
+    """Content of `filepath` as staged in the index, or None if unavailable."""
+    try:
+        result = subprocess.run(
+            ["git", "show", ":%s" % filepath],
+            cwd=cwd, capture_output=True, timeout=10,
+        )
+    except (subprocess.TimeoutExpired, OSError):
+        return None
+    if result.returncode != 0:
+        return None
+    return result.stdout.decode("utf-8", errors="ignore")
+
+
+def check_file_v2(cwd, filepath, from_index=False):
     """Run configurable quality checks on a staged file.
 
     Returns (errors, warnings) tuple of lists.
     Uses quality_rules module for configurable checks.
-    """
-    full_path = os.path.join(cwd, filepath)
 
-    # Read file content
-    try:
-        with open(full_path, "r", encoding="utf-8", errors="ignore") as f:
-            content = f.read()
-    except (OSError, UnicodeDecodeError):
-        content = ""
+    from_index: scan the staged blob rather than the working tree -- the
+    working tree can differ from what is actually being committed.
+    """
+    content = _read_index_content(cwd, filepath) if from_index else None
+    if content is None:
+        full_path = os.path.join(cwd, filepath)
+        try:
+            with open(full_path, "r", encoding="utf-8", errors="ignore") as f:
+                content = f.read()
+        except (OSError, UnicodeDecodeError):
+            content = ""
 
     result = quality_rules.run_checks(cwd, filepath, content)
     return result.get("errors", []), result.get("warnings", [])
 
 
-def run_quality_gate(cwd):
-    """Run all quality checks on staged files. Returns (passed, report)."""
+def run_quality_gate(cwd, pending=None):
+    """Run all quality checks on staged files. Returns (passed, report).
+
+    pending: files the same command will stage before committing (see
+    analyze_commit_command). They are scanned from the working tree.
+    """
+    pending = set(pending or ())
     staged = get_staged_files(cwd)
-    if not staged:
+    files = list(staged) + sorted(p for p in pending if p not in staged)
+    if not files:
         return True, "No staged files to check."
 
     if _USE_QUALITY_RULES:
-        return _run_quality_gate_v2(cwd, staged)
+        return _run_quality_gate_v2(cwd, files, pending)
     else:
-        return _run_quality_gate_legacy(cwd, staged)
+        return _run_quality_gate_legacy(cwd, files)
 
 
-def _run_quality_gate_v2(cwd, staged):
+def _run_quality_gate_v2(cwd, staged, pending=frozenset()):
     """Configurable quality gate using quality_rules module."""
     all_errors = {}
     all_warnings = {}
@@ -184,7 +208,8 @@ def _run_quality_gate_v2(cwd, staged):
     for filepath in staged:
         if should_skip(filepath):
             continue
-        errors, warnings = check_file_v2(cwd, filepath)
+        errors, warnings = check_file_v2(
+            cwd, filepath, from_index=filepath not in pending)
         if errors:
             all_errors[filepath] = errors
         if warnings:
@@ -363,7 +388,15 @@ def _strip_quoted(command):
 
 def _is_git_commit_segment(segment):
     """True if a single shell command segment invokes `git ... commit`."""
-    tokens = segment.split()
+    sub, _ = _git_subcommand(segment.split())
+    return sub == "commit"
+
+
+def _git_subcommand(tokens):
+    """Return (subcommand, args_after_it) for a tokenized `git ...` segment.
+
+    (None, []) when the segment does not invoke git.
+    """
     idx = 0
     # Skip env assignments, shell keywords and benign command wrappers --
     # plus any options belonging to a wrapper we already skipped, so
@@ -380,10 +413,10 @@ def _is_git_commit_segment(segment):
             continue
         break
     if idx >= len(tokens):
-        return False
+        return None, []
 
     if tokens[idx].rsplit("/", 1)[-1] not in ("git", "git.exe"):
-        return False
+        return None, []
     idx += 1
 
     # The subcommand is the first non-option token after any global options.
@@ -392,19 +425,118 @@ def _is_git_commit_segment(segment):
         if token.startswith("-"):
             idx += 2 if token in _GIT_VALUE_OPTS else 1
             continue
-        return token == "commit"
-    return False
+        return token, tokens[idx + 1:]
+    return None, []
+
+
+def _segments(command):
+    """Yield (cleaned_segment, raw_segment) for every command in a shell chain.
+
+    The cleaned text (quotes blanked) decides *what* a segment is; the raw text
+    (quotes intact) is what gets tokenized for its arguments. _strip_quoted
+    preserves length, so the same span indexes both strings.
+    """
+    raw = _strip_heredocs(command)
+    cleaned = _strip_quoted(raw)
+    start = 0
+    for match in _SEGMENT_SPLIT_RE.finditer(cleaned):
+        yield cleaned[start:match.start()], raw[start:match.start()]
+        start = match.end()
+    yield cleaned[start:], raw[start:]
+
+
+def _tokenize(raw_segment, fallback):
+    try:
+        return shlex.split(raw_segment, comments=True)
+    except ValueError:
+        return fallback.split()
 
 
 def is_git_commit_command(command):
     """True if `command` invokes `git commit` anywhere in its shell chain."""
     if not command or "commit" not in command:
         return False
-    cleaned = _strip_quoted(_strip_heredocs(command))
-    for segment in _SEGMENT_SPLIT_RE.split(cleaned):
-        if _is_git_commit_segment(segment):
+    for cleaned, _raw in _segments(command):
+        if _is_git_commit_segment(cleaned):
             return True
     return False
+
+
+def analyze_commit_command(command):
+    """Describe what a Bash command will commit.
+
+    Returns None when the command never runs `git commit`. Otherwise a dict:
+      add_args   -- argument lists of every `git add` that runs *before* the
+                    commit in the same chain. PreToolUse fires before any of
+                    the chain executes, so the index does not contain these
+                    files yet; they must be resolved with `git add --dry-run`.
+      commit_all -- True for `git commit -a` / `--all` / `-am ...`, which
+                    stages every modified tracked file at commit time.
+    """
+    if not command or "commit" not in command:
+        return None
+    add_args = []
+    for cleaned, raw in _segments(command):
+        sub, _ = _git_subcommand(cleaned.split())
+        if sub is None:
+            continue
+        _, args = _git_subcommand(_tokenize(raw, cleaned))
+        if sub == "add":
+            add_args.append(args)
+        elif sub == "commit":
+            commit_all = False
+            for arg in args:
+                if arg in ("-a", "--all"):
+                    commit_all = True
+                elif arg.startswith("-") and not arg.startswith("--") and "a" in arg[1:]:
+                    # combined short flags such as -am; stop at a value-taking
+                    # flag so `-mfoo` (message "foo") is not read as -a
+                    for ch in arg[1:]:
+                        if ch == "a":
+                            commit_all = True
+                            break
+                        if ch in "mFcCt":
+                            break
+            return {"add_args": add_args, "commit_all": commit_all}
+    return None
+
+
+def _pending_files(cwd, analysis):
+    """Files the command will stage before committing (not yet in the index)."""
+    pending = set()
+    for args in analysis.get("add_args", []):
+        try:
+            result = subprocess.run(
+                ["git", "add", "--dry-run", "--ignore-missing"] + args,
+                cwd=cwd, capture_output=True, text=True, timeout=10,
+            )
+        except (subprocess.TimeoutExpired, OSError):
+            continue
+        if result.returncode != 0:
+            # --ignore-missing is only valid with --dry-run; retry without it
+            try:
+                result = subprocess.run(
+                    ["git", "add", "--dry-run"] + args,
+                    cwd=cwd, capture_output=True, text=True, timeout=10,
+                )
+            except (subprocess.TimeoutExpired, OSError):
+                continue
+        for line in result.stdout.splitlines():
+            # "add 'path'" / "remove 'path'"
+            m = re.match(r"^add '(.*)'$", line.strip())
+            if m:
+                pending.add(m.group(1))
+    if analysis.get("commit_all"):
+        try:
+            result = subprocess.run(
+                ["git", "diff", "--name-only", "--diff-filter=d"],
+                cwd=cwd, capture_output=True, text=True, timeout=10,
+            )
+            if result.returncode == 0:
+                pending.update(p for p in result.stdout.splitlines() if p)
+        except (subprocess.TimeoutExpired, OSError):
+            pass
+    return pending
 
 
 def main():
@@ -419,7 +551,8 @@ def main():
         tool_input = input_data.get("tool_input", {})
         command = tool_input.get("command", "")
 
-        if not is_git_commit_command(command):
+        analysis = analyze_commit_command(command)
+        if analysis is None:
             sys.exit(0)
 
         cwd = input_data.get("cwd", os.getcwd())
@@ -428,15 +561,22 @@ def main():
         if not os.path.isdir(os.path.join(cwd, ".hody")):
             sys.exit(0)
 
-        passed, report = run_quality_gate(cwd)
+        passed, report = run_quality_gate(cwd, _pending_files(cwd, analysis))
 
         if passed:
-            # Allow commit, add info message
             output = {
                 "hookSpecificOutput": {
                     "hookEventName": "PreToolUse",
                 }
             }
+            if "with warnings" in report:
+                # Non-blocking: surface the warnings instead of dropping them --
+                # additionalContext reaches the model, systemMessage the user.
+                # No permissionDecision: "allow" would skip the user's own
+                # permission prompt for the commit.
+                message = "[Hody Quality Gate] " + report
+                output["hookSpecificOutput"]["additionalContext"] = message
+                output["systemMessage"] = message
             print(json.dumps(output))
             sys.exit(0)
         else:

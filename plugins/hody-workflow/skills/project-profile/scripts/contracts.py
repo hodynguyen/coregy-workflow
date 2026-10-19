@@ -8,10 +8,12 @@ exist in the agent's output or KB.
 Validation is advisory by default — produces warnings, not errors.
 """
 import argparse
+import calendar
 import json
 import os
 import re
 import sys
+import time
 
 
 # Contracts live in the plugin, not the project:
@@ -121,17 +123,54 @@ def list_contracts(contracts_dir):
     return contracts
 
 
+def _workflow_started_epoch(state):
+    """created_at of an in-progress workflow as a UNIX timestamp, or None."""
+    if not isinstance(state, dict) or state.get("status") != "in_progress":
+        return None
+    created = state.get("created_at")
+    if not created:
+        return None
+    try:
+        return calendar.timegm(time.strptime(created, "%Y-%m-%dT%H:%M:%SZ"))
+    except (ValueError, TypeError):
+        return None
+
+
+def _handoff_files(kb_dir, state):
+    """KB files to search for required handoff sections.
+
+    During an active workflow only its own feature log and spec count --
+    otherwise a section written for some earlier feature satisfies the
+    handoff forever. Without a workflow, every KB file is searched.
+
+    Returns (paths, scoped_to_workflow).
+    """
+    if isinstance(state, dict) and state.get("status") == "in_progress":
+        names = [state.get("log_file"), state.get("spec_file")]
+        paths = [os.path.join(kb_dir, n) for n in names if n]
+        paths = [p for p in paths if os.path.isfile(p)]
+        if paths:
+            return paths, True
+    if not os.path.isdir(kb_dir):
+        return [], False
+    return [os.path.join(kb_dir, f) for f in sorted(os.listdir(kb_dir))
+            if f.endswith(".md")], False
+
+
 def validate_handoff(contract, kb_dir, state=None):
     """Validate a contract against the current KB state.
 
     Checks:
-    1. Required KB files exist and have been modified (not just template)
-    2. Required sections exist in KB files (by heading search)
+    1. Required KB files exist, have real content, and -- during an active
+       workflow -- were modified after that workflow started
+    2. Required sections exist as headings (any level ## to ######): in the
+       workflow's feature log/spec when a workflow is active, else anywhere
+       in the KB
 
     Args:
         contract: Parsed contract dict.
         kb_dir: Path to .hody/knowledge/ directory.
-        state: Optional workflow state dict (for agent_log checks).
+        state: Optional workflow state dict (scopes both checks to it).
 
     Returns:
         dict with 'passed', 'warnings', 'errors' keys.
@@ -141,6 +180,8 @@ def validate_handoff(contract, kb_dir, state=None):
 
     if not contract:
         return result
+
+    started = _workflow_started_epoch(state)
 
     # Check validation rules
     for rule in contract.get("validation", []):
@@ -167,30 +208,34 @@ def validate_handoff(contract, kb_dir, state=None):
                      and not l.strip().startswith("---")]
             if len(lines) < 3:
                 result["warnings"].append(f"[Template only] {kb_file}: {message}")
+            elif started is not None and os.path.getmtime(kb_path) < started:
+                result["warnings"].append(
+                    f"[Not updated in this workflow] {kb_file}: {message}")
 
-    # Check required sections (advisory — check if KB mentions them)
+    # Check required sections (advisory -- check if KB mentions them)
+    files, scoped = _handoff_files(kb_dir, state)
+    contents = []
+    for fpath in files:
+        try:
+            with open(fpath, "r") as f:
+                contents.append(f.read())
+        except OSError:
+            continue
+
     for section in contract.get("required_sections", []):
         section_name = section.get("name", "")
         if not section_name:
             continue
 
-        # Search across all KB files for this section heading
-        found = False
-        if os.path.isdir(kb_dir):
-            for fname in os.listdir(kb_dir):
-                if not fname.endswith(".md"):
-                    continue
-                fpath = os.path.join(kb_dir, fname)
-                with open(fpath, "r") as f:
-                    content = f.read()
-                if re.search(rf"##\s+.*{re.escape(section_name)}", content, re.IGNORECASE):
-                    found = True
-                    break
+        pattern = rf"^#{{2,6}}\s+.*{re.escape(section_name)}"
+        found = any(re.search(pattern, c, re.IGNORECASE | re.MULTILINE)
+                    for c in contents)
 
         if not found:
             fmt = section.get("format", "")
+            where = "workflow log/spec" if scoped else "KB"
             result["warnings"].append(
-                f"[Missing section] '{section_name}' not found in KB"
+                f"[Missing section] '{section_name}' not found in {where}"
                 + (f" (expected: {fmt})" if fmt else "")
             )
 

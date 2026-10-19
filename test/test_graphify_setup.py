@@ -237,88 +237,66 @@ class TestUpdateProfileYaml(unittest.TestCase):
 
 
 class TestUpdateClaudeSettings(unittest.TestCase):
-    def test_creates_new_settings(self):
+    def setUp(self):
+        # Never let the tests touch the real `claude` CLI / ~/.claude.json.
+        self._mode = os.environ.get("HODY_MCP_MODE")
+        os.environ["HODY_MCP_MODE"] = "file"
+
+    def tearDown(self):
+        if self._mode is None:
+            os.environ.pop("HODY_MCP_MODE", None)
+        else:
+            os.environ["HODY_MCP_MODE"] = self._mode
+
+    def _mcp(self, tmp):
+        with open(os.path.join(tmp, ".mcp.json")) as f:
+            return json.load(f)
+
+    def test_registers_in_mcp_json(self):
         with tempfile.TemporaryDirectory() as tmp:
             update_claude_settings(tmp, "/usr/bin/python3.12")
-            path = os.path.join(tmp, ".claude", "settings.json")
-            self.assertTrue(os.path.isfile(path))
-            with open(path) as f:
-                data = json.load(f)
-            self.assertIn("mcpServers", data)
-            self.assertIn("graphify", data["mcpServers"])
+            server = self._mcp(tmp)["mcpServers"]["graphify"]
+            self.assertEqual(server["command"], "/usr/bin/python3.12")
             self.assertEqual(
-                data["mcpServers"]["graphify"]["command"],
-                "/usr/bin/python3.12",
+                server["args"],
+                ["-m", "graphify.serve",
+                 os.path.join(os.path.abspath(tmp), "graphify-out", "graph.json")],
             )
-            self.assertEqual(
-                data["mcpServers"]["graphify"]["args"],
-                ["-m", "graphify.serve", "graphify-out/graph.json"],
-            )
+            # never written to the file Claude Code does not read
+            self.assertFalse(os.path.isfile(os.path.join(tmp, ".claude", "settings.json")))
 
-    def test_preserves_existing_settings(self):
+    def test_preserves_other_mcp_servers(self):
         with tempfile.TemporaryDirectory() as tmp:
-            settings_dir = os.path.join(tmp, ".claude")
-            os.makedirs(settings_dir)
-            existing = {
-                "enabledPlugins": ["hody-workflow"],
-                "mcpServers": {
-                    "github": {"command": "npx", "args": ["server-github"]},
-                },
-            }
-            with open(os.path.join(settings_dir, "settings.json"), "w") as f:
-                json.dump(existing, f)
-
+            with open(os.path.join(tmp, ".mcp.json"), "w") as f:
+                json.dump({"mcpServers": {"github": {"command": "npx"}}}, f)
             update_claude_settings(tmp, "/opt/homebrew/bin/python3.13")
+            servers = self._mcp(tmp)["mcpServers"]
+            self.assertIn("github", servers)
+            self.assertEqual(servers["graphify"]["command"], "/opt/homebrew/bin/python3.13")
 
-            with open(os.path.join(settings_dir, "settings.json")) as f:
-                data = json.load(f)
-
-            # Existing data preserved
-            self.assertEqual(data["enabledPlugins"], ["hody-workflow"])
-            self.assertIn("github", data["mcpServers"])
-            # Graphify added
-            self.assertIn("graphify", data["mcpServers"])
-            self.assertEqual(
-                data["mcpServers"]["graphify"]["command"],
-                "/opt/homebrew/bin/python3.13",
-            )
-
-    def test_overwrites_existing_graphify(self):
+    def test_migrates_legacy_settings_entry(self):
         with tempfile.TemporaryDirectory() as tmp:
             settings_dir = os.path.join(tmp, ".claude")
             os.makedirs(settings_dir)
-            existing = {
-                "mcpServers": {
-                    "graphify": {"command": "old-python", "args": ["old"]},
-                },
-            }
             with open(os.path.join(settings_dir, "settings.json"), "w") as f:
-                json.dump(existing, f)
-
+                json.dump({"enabledPlugins": ["hody-workflow"],
+                           "mcpServers": {"graphify": {"command": "old"}}}, f)
             update_claude_settings(tmp, "/usr/bin/python3.11")
-
             with open(os.path.join(settings_dir, "settings.json")) as f:
                 data = json.load(f)
+            self.assertEqual(data["enabledPlugins"], ["hody-workflow"])
+            self.assertNotIn("mcpServers", data)
+            self.assertEqual(self._mcp(tmp)["mcpServers"]["graphify"]["command"],
+                             "/usr/bin/python3.11")
 
-            self.assertEqual(
-                data["mcpServers"]["graphify"]["command"],
-                "/usr/bin/python3.11",
-            )
-
-    def test_handles_corrupt_json(self):
-        """Should overwrite corrupt settings.json gracefully."""
+    def test_handles_corrupt_legacy_settings(self):
         with tempfile.TemporaryDirectory() as tmp:
             settings_dir = os.path.join(tmp, ".claude")
             os.makedirs(settings_dir)
             with open(os.path.join(settings_dir, "settings.json"), "w") as f:
                 f.write("{corrupt json!!")
-
             update_claude_settings(tmp, "/usr/bin/python3.12")
-
-            with open(os.path.join(settings_dir, "settings.json")) as f:
-                data = json.load(f)
-            self.assertIn("graphify", data["mcpServers"])
-
+            self.assertIn("graphify", self._mcp(tmp)["mcpServers"])
 
 if __name__ == "__main__":
     unittest.main()

@@ -375,10 +375,10 @@ class TestRunCiFeedback(unittest.TestCase):
         mock_status.return_value = {
             "branch": "feature-x",
             "status": "failure",
-            "checks": [{"name": "CI", "status": "completed", "conclusion": "failure", "url": ""}],
+            "checks": [{"id": 4242, "name": "CI", "status": "completed", "conclusion": "failure", "url": ""}],
             "raw_output": "{}",
         }
-        # Mock gh run view --log-failed
+        # Mock gh run view <id> --log-failed
         log_output = (
             "FAILED test_auth.py::TestLogin::test_password - AssertionError: wrong password\n"
             "--- FAIL: TestCreateUser (0.01s)\n"
@@ -397,6 +397,9 @@ class TestRunCiFeedback(unittest.TestCase):
                 content = f.read()
             self.assertIn("CI Failures", content)
             self.assertIn("feature-x", content)
+        # `gh run view` takes the run id; it has no --branch flag
+        mock_run_gh.assert_called_with(
+            ["run", "view", "4242", "--log-failed"], cwd=tmpdir, timeout=60)
 
 
 if __name__ == "__main__":

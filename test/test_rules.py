@@ -325,6 +325,27 @@ class TestCLI(unittest.TestCase):
                 os.path.isfile(os.path.join(tmp, ".hody", "rules.yaml"))
             )
 
+    def test_init_never_overwrites_without_force(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            path = os.path.join(tmp, ".hody", "rules.yaml")
+            os.makedirs(os.path.dirname(path))
+            with open(path, "w") as f:
+                f.write('version: "1"\ncustom:\n  - "keep me"\n')
+            result = subprocess.run(
+                [sys.executable, self.SCRIPT, "init", "--cwd", tmp],
+                capture_output=True, text=True, timeout=10,
+            )
+            self.assertEqual(result.returncode, 1)
+            with open(path) as f:
+                self.assertIn("keep me", f.read())
+            result = subprocess.run(
+                [sys.executable, self.SCRIPT, "init", "--force", "--cwd", tmp],
+                capture_output=True, text=True, timeout=10,
+            )
+            self.assertEqual(result.returncode, 0)
+            with open(path) as f:
+                self.assertNotIn("keep me", f.read())
+
     def test_validate_valid(self):
         with tempfile.TemporaryDirectory() as tmp:
             hody = os.path.join(tmp, ".hody")

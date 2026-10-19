@@ -1,7 +1,7 @@
 """Build the complete project profile — orchestrator that imports all detectors."""
 import os
 
-from detectors.utils import read_json
+from detectors.utils import read_json, read_lines
 from detectors.node import detect_node
 from detectors.go import detect_go
 from detectors.python_lang import detect_python
@@ -17,6 +17,41 @@ from detectors.conventions import detect_conventions
 from detectors.integrations import load_existing_integrations
 from detectors.directories import detect_directories
 from detectors.deep_analysis import run_deep_analysis
+
+
+# (marker files, language) in priority order
+_LANGUAGE_MARKERS = [
+    (("go.mod",), "go"),
+    (("Cargo.toml",), "rust"),
+    (("pyproject.toml", "setup.py", "requirements.txt", "Pipfile"), "python"),
+    (("pom.xml", "build.gradle", "build.gradle.kts"), "java"),
+    (("Gemfile",), "ruby"),
+    (("composer.json",), "php"),
+]
+
+
+def _detect_primary_language(cwd):
+    """Best-effort language for a project without a recognised framework."""
+    pkg = read_json(os.path.join(cwd, "package.json"))
+    if pkg:
+        deps = {}
+        deps.update(pkg.get("dependencies", {}) or {})
+        deps.update(pkg.get("devDependencies", {}) or {})
+        return "typescript" if "typescript" in deps else "javascript"
+    for markers, language in _LANGUAGE_MARKERS:
+        if any(os.path.isfile(os.path.join(cwd, m)) for m in markers):
+            if language == "java":
+                for m in markers:
+                    content = read_lines(os.path.join(cwd, m))
+                    if "kotlin" in content:
+                        return "kotlin"
+            return language
+    try:
+        if any(f.endswith((".csproj", ".sln")) for f in os.listdir(cwd)):
+            return "csharp"
+    except OSError:
+        pass
+    return None
 
 
 def build_profile(cwd, deep=False):
@@ -109,7 +144,13 @@ def build_profile(cwd, deep=False):
     elif be:
         profile["project"]["type"] = "backend"
     else:
-        profile["project"]["type"] = "unknown"
+        # A language with no recognised framework (a CLI, a library, a
+        # Python/Rust tool...) used to come out as "unknown" with no language
+        # recorded anywhere, so every agent lost the one fact it had.
+        language = _detect_primary_language(cwd)
+        profile["project"]["type"] = "library" if language else "unknown"
+        if language:
+            profile["project"]["language"] = language
 
     # Database
     db = detect_database(cwd)

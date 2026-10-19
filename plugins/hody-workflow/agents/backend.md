@@ -70,15 +70,14 @@ Adapt implementation based on profile:
 
 ## Knowledge Base Update
 
-When writing new sections to KB files, include YAML frontmatter at the top of each new entry:
+YAML frontmatter is only valid at the very top of a file. If the KB file you write to has
+none yet, add it there (`tags`, `created`, `author_agent: backend`, `status: active`). For each
+new section you append, put a one-line metadata comment directly under its heading instead —
+never a second `---` block mid-file (Markdown renders it as a heading and the index ignores it):
 
 ```markdown
----
-tags: [relevant, topic, tags]
-created: YYYY-MM-DD
-author_agent: backend
-status: active
----
+## <Section title>
+<!-- author_agent: backend | created: YYYY-MM-DD | tags: relevant, topic, tags -->
 ```
 
 After completing work:
@@ -86,6 +85,25 @@ After completing work:
 - New business rules discovered → append to `business-rules.md`
 - Backend tech debt → note in `tech-debt.md`
 - Deployment notes (new env vars, migrations) → note in `runbook.md`
+
+## Handoff
+
+When a workflow is active (`.hody/state.json` has `status: in_progress`), append this
+section to the feature log (`.hody/knowledge/<log_file>`) before marking yourself complete.
+The downstream agent's contract check (`contracts.py validate`) looks for exactly these
+headings in the current workflow's log/spec:
+
+```markdown
+## Handoff: backend -> unit-tester
+### Implementation Files
+<...>
+### Test Strategy
+<...>
+### Edge Cases
+<...>
+```
+
+Skip it when there is no active workflow.
 
 ## MCP Tools
 

@@ -54,21 +54,49 @@ follow its section structure.
 
 ## Knowledge Base Update
 
-When writing new sections to KB files, include YAML frontmatter at the top of each new entry:
+YAML frontmatter is only valid at the very top of a file. If the KB file you write to has
+none yet, add it there (`tags`, `created`, `author_agent: architect`, `status: active`). For each
+new section you append, put a one-line metadata comment directly under its heading instead —
+never a second `---` block mid-file (Markdown renders it as a heading and the index ignores it):
 
 ```markdown
----
-tags: [relevant, topic, tags]
-created: YYYY-MM-DD
-author_agent: architect
-status: active
----
+## <Section title>
+<!-- author_agent: architect | created: YYYY-MM-DD | tags: relevant, topic, tags -->
 ```
 
 After completing work, update the relevant knowledge base files:
 - New architectural decisions → append to `decisions.md`
 - New API contracts → append to `api-contracts.md`
 - System design changes → update `architecture.md`
+
+## Handoff
+
+When a workflow is active (`.hody/state.json` has `status: in_progress`), append this
+section to the feature log (`.hody/knowledge/<log_file>`) before marking yourself complete (write only the block for the agent(s) actually in the workflow).
+The downstream agent's contract check (`contracts.py validate`) looks for exactly these
+headings in the current workflow's log/spec:
+
+```markdown
+## Handoff: architect -> backend
+### API Endpoints
+<...>
+### Data Models
+<...>
+### Architecture Decision
+<...>
+```
+
+```markdown
+## Handoff: architect -> frontend
+### Component Hierarchy
+<...>
+### State Management
+<...>
+### API Contract for Frontend
+<...>
+```
+
+Skip it when there is no active workflow.
 
 ## MCP Tools
 

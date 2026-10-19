@@ -17,11 +17,14 @@ SCRIPT_DIR = os.path.join(
 )
 sys.path.insert(0, os.path.abspath(SCRIPT_DIR))
 
+# Never let the tests reach the real `claude` CLI / ~/.claude.json.
+os.environ["HODY_MCP_MODE"] = "file"
+
 import mcp_setup
 
 
 def _read_settings(cwd):
-    path = os.path.join(cwd, ".claude", "settings.json")
+    path = os.path.join(cwd, ".mcp.json")
     if not os.path.isfile(path):
         return None
     with open(path) as f:
@@ -85,16 +88,22 @@ class TestBuildServerConfig(unittest.TestCase):
                 "email": "u@acme.com",
             },
         )
-        self.assertEqual(config["command"], "npx")
-        self.assertIn("@anthropic/mcp-server-atlassian", config["args"])
+        self.assertEqual(config["command"], "uvx")
+        self.assertEqual(config["args"], ["mcp-atlassian"])
         self.assertEqual(
             config["env"],
             {
                 "JIRA_API_TOKEN": "tok",
-                "JIRA_BASE_URL": "https://acme.atlassian.net",
-                "JIRA_USER_EMAIL": "u@acme.com",
+                "JIRA_URL": "https://acme.atlassian.net",
+                "JIRA_USERNAME": "u@acme.com",
             },
         )
+
+    def test_github_uses_official_remote_server(self):
+        config = mcp_setup.build_server_config("github", {"token": "ghp_x"})
+        self.assertEqual(config["type"], "http")
+        self.assertEqual(config["headers"], {"Authorization": "Bearer ghp_x"})
+        self.assertNotIn("env", config)
 
     def test_missing_field_raises(self):
         with self.assertRaises(ValueError):
@@ -123,13 +132,8 @@ class TestConfigure(unittest.TestCase):
         self.assertEqual(env["JIRA_API_TOKEN"], "tok")
 
     def test_preserves_existing_servers(self):
-        os.makedirs(os.path.join(self.cwd, ".claude"))
-        with open(os.path.join(self.cwd, ".claude", "settings.json"), "w") as f:
-            json.dump(
-                {"mcpServers": {"graphify": {"command": "python"}},
-                 "otherKey": "preserved"},
-                f,
-            )
+        with open(os.path.join(self.cwd, ".mcp.json"), "w") as f:
+            json.dump({"mcpServers": {"graphify": {"command": "python"}}}, f)
 
         mcp_setup.configure(
             self.cwd,
@@ -139,7 +143,25 @@ class TestConfigure(unittest.TestCase):
         settings = _read_settings(self.cwd)
         self.assertIn("graphify", settings["mcpServers"])
         self.assertIn("jira", settings["mcpServers"])
-        self.assertEqual(settings["otherKey"], "preserved")
+
+    def test_credentials_file_is_gitignored(self):
+        result = mcp_setup.configure(
+            self.cwd, "jira", {"api-token": "tok", "site": "S", "email": "E"})
+        with open(os.path.join(self.cwd, ".gitignore")) as f:
+            self.assertIn(".mcp.json", f.read().splitlines())
+        self.assertIn("credentials", result["warning"])
+
+    def test_migrates_legacy_settings_entry(self):
+        os.makedirs(os.path.join(self.cwd, ".claude"))
+        legacy = os.path.join(self.cwd, ".claude", "settings.json")
+        with open(legacy, "w") as f:
+            json.dump({"mcpServers": {"jira": {"command": "npx"}},
+                       "otherKey": "preserved"}, f)
+        mcp_setup.configure(
+            self.cwd, "jira", {"api-token": "tok", "site": "S", "email": "E"})
+        with open(legacy) as f:
+            data = json.load(f)
+        self.assertEqual(data, {"otherKey": "preserved"})
 
     def test_updates_profile_flag(self):
         mcp_setup.configure(
@@ -159,8 +181,8 @@ class TestConfigure(unittest.TestCase):
         mcp_setup.configure(self.cwd, "linear", {"api-key": "key"})
         settings = _read_settings(self.cwd)
         self.assertEqual(
-            settings["mcpServers"]["linear"]["env"],
-            {"LINEAR_API_KEY": "key"},
+            settings["mcpServers"]["linear"]["headers"],
+            {"Authorization": "Bearer key"},
         )
 
     def test_overwrites_existing_jira(self):
@@ -177,7 +199,7 @@ class TestConfigure(unittest.TestCase):
         settings = _read_settings(self.cwd)
         env = settings["mcpServers"]["jira"]["env"]
         self.assertEqual(env["JIRA_API_TOKEN"], "new")
-        self.assertEqual(env["JIRA_BASE_URL"], "S2")
+        self.assertEqual(env["JIRA_URL"], "S2")
 
 
 class TestRemove(unittest.TestCase):
@@ -185,8 +207,7 @@ class TestRemove(unittest.TestCase):
         self.tmp = tempfile.TemporaryDirectory()
         self.cwd = self.tmp.name
         _write_profile(self.cwd, "integrations:\n  jira: true\n")
-        os.makedirs(os.path.join(self.cwd, ".claude"))
-        with open(os.path.join(self.cwd, ".claude", "settings.json"), "w") as f:
+        with open(os.path.join(self.cwd, ".mcp.json"), "w") as f:
             json.dump(
                 {"mcpServers": {
                     "jira": {"command": "npx"},
@@ -200,7 +221,7 @@ class TestRemove(unittest.TestCase):
 
     def test_removes_only_target(self):
         result = mcp_setup.remove(self.cwd, "jira")
-        self.assertTrue(result["removed_from_settings"])
+        self.assertTrue(result["removed"])
         settings = _read_settings(self.cwd)
         self.assertNotIn("jira", settings["mcpServers"])
         self.assertIn("linear", settings["mcpServers"])
@@ -208,7 +229,7 @@ class TestRemove(unittest.TestCase):
     def test_remove_missing_returns_false(self):
         mcp_setup.remove(self.cwd, "jira")
         result = mcp_setup.remove(self.cwd, "jira")
-        self.assertFalse(result["removed_from_settings"])
+        self.assertFalse(result["removed"])
 
     def test_flips_profile_flag(self):
         mcp_setup.remove(self.cwd, "jira")
@@ -221,7 +242,7 @@ class TestStatus(unittest.TestCase):
     def test_no_settings_no_profile(self):
         with tempfile.TemporaryDirectory() as cwd:
             result = mcp_setup.status(cwd)
-            self.assertFalse(result["jira"]["configured_in_settings"])
+            self.assertFalse(result["jira"]["configured"])
             self.assertIsNone(result["jira"]["profile_flag"])
 
     def test_configured_state(self):
@@ -231,9 +252,9 @@ class TestStatus(unittest.TestCase):
                 cwd, "jira", {"api-token": "X", "site": "Y", "email": "Z"}
             )
             result = mcp_setup.status(cwd)
-            self.assertTrue(result["jira"]["configured_in_settings"])
+            self.assertTrue(result["jira"]["configured"])
             self.assertEqual(result["jira"]["profile_flag"], "true")
-            self.assertFalse(result["linear"]["configured_in_settings"])
+            self.assertFalse(result["linear"]["configured"])
             self.assertEqual(result["linear"]["profile_flag"], "false")
 
 

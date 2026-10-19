@@ -32,8 +32,8 @@ Adapt testing approach based on profile:
 - If `backend.framework` is `gin` or `echo` → Use `net/http/httptest`, table-driven tests
 - If `backend.framework` is `django` → Use Django test client, `TestCase`
 - If `backend.framework` is `fastapi` → Use `httpx.AsyncClient`, `TestClient`
-- If `frontend.testing` includes `playwright` → Use Playwright for E2E
-- If `frontend.testing` includes `cypress` → Use Cypress for E2E
+- If `frontend.e2e` is `playwright` → Use Playwright for E2E
+- If `frontend.e2e` is `cypress` → Use Cypress for E2E
 - If `backend.testing` is `pytest` → Use fixtures, `conftest.py` for shared setup
 
 ## Responsibilities
@@ -71,15 +71,14 @@ For each API endpoint or business flow, cover:
 
 ## Knowledge Base Update
 
-When writing new sections to KB files, include YAML frontmatter at the top of each new entry:
+YAML frontmatter is only valid at the very top of a file. If the KB file you write to has
+none yet, add it there (`tags`, `created`, `author_agent: integration-tester`, `status: active`). For each
+new section you append, put a one-line metadata comment directly under its heading instead —
+never a second `---` block mid-file (Markdown renders it as a heading and the index ignores it):
 
 ```markdown
----
-tags: [relevant, topic, tags]
-created: YYYY-MM-DD
-author_agent: integration-tester
-status: active
----
+## <Section title>
+<!-- author_agent: integration-tester | created: YYYY-MM-DD | tags: relevant, topic, tags -->
 ```
 
 After writing tests:

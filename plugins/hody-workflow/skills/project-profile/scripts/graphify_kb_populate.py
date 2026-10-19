@@ -12,6 +12,7 @@ Usage:
 import argparse
 import json
 import os
+import re
 import sys
 from collections import Counter
 from datetime import datetime
@@ -103,14 +104,9 @@ def generate_section(nodes, edges, graph_path):
 
     lines = []
     lines.append("")
-    lines.append("---")
-    lines.append("tags: [graphify, architecture, auto-generated]")
-    lines.append("created: %s" % today)
-    lines.append("author_agent: graphify_kb_populate")
-    lines.append("status: active")
-    lines.append("---")
-    lines.append("")
     lines.append("## Graph-Derived Architecture")
+    lines.append("<!-- author_agent: graphify_kb_populate | created: %s | "
+                 "tags: graphify, architecture, auto-generated -->" % today)
     lines.append("")
     lines.append(
         "> Auto-generated from `%s` (%d nodes, %d edges). "
@@ -186,17 +182,20 @@ def append_to_architecture(cwd, section_text):
     if marker in content:
         # Find the section start and end
         start = content.index(marker)
-        # Walk back to include any frontmatter block preceding it
-        # Look for "---\n" before the marker
-        search_pos = max(0, start - 200)
-        prefix = content[search_pos:start]
-        fm_start = prefix.rfind("\n---\n")
-        if fm_start >= 0:
-            start = search_pos + fm_start + 1  # include the \n before ---
+        # Versions before v0.13.1 wrote a `---` metadata block right above
+        # the heading; drop it on rewrite. Match only that exact block -- a
+        # bare rfind("---") could hit the closing line of the file's real
+        # frontmatter and delete it.
+        legacy = re.search(
+            r"\n---\ntags: \[graphify, architecture, auto-generated\]\n"
+            r"(?:[^\n]*\n){0,4}?---\n\s*$",
+            content[:start],
+        )
+        if legacy:
+            start = legacy.start()
 
         # Find next ## heading after the marker
         rest = content[content.index(marker) + len(marker):]
-        import re
         next_heading = re.search(r"\n## ", rest)
         if next_heading:
             end = content.index(marker) + len(marker) + next_heading.start()

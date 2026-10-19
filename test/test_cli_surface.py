@@ -832,7 +832,7 @@ def big_kb_file(sections=6, lines_per_section=6):
 class TestKbArchiveCli(CliTestCase):
     def setUp(self):
         CliTestCase.setUp(self)
-        write(os.path.join(self.kb, "architecture.md"), big_kb_file())
+        write(os.path.join(self.kb, "decisions.md"), big_kb_file())
         write(os.path.join(self.kb, "small.md"), "# Small\n\n## S\n\nText.\n")
 
     def test_check_reports_nothing_under_the_default_threshold(self):
@@ -846,7 +846,7 @@ class TestKbArchiveCli(CliTestCase):
         )
         self.assertOk(result)
         self.assertIn("1 file(s) over 10 lines:", result.stdout)
-        self.assertIn("architecture.md", result.stdout)
+        self.assertIn("decisions.md", result.stdout)
         self.assertNotIn("small.md", result.stdout)
 
     def test_check_json_shape(self):
@@ -854,7 +854,7 @@ class TestKbArchiveCli(CliTestCase):
             "kb_archive.py", "check", "--threshold", "10", "--json", "--cwd", ".",
         ))
         self.assertEqual(len(data), 1)
-        self.assertEqual(data[0]["file"], "architecture.md")
+        self.assertEqual(data[0]["file"], "decisions.md")
         self.assertTrue(data[0]["needs_archival"])
         self.assertGreater(data[0]["lines"], 10)
 
@@ -886,14 +886,14 @@ class TestKbArchiveCli(CliTestCase):
         )
         self.assertOk(result)
         self.assertIn("Archived 1 file(s):", result.stdout)
-        self.assertIn("architecture.md -> archive/", result.stdout)
+        self.assertIn("decisions.md -> archive/", result.stdout)
         self.assertIn("sections moved", result.stdout)
 
         archive_dir = os.path.join(self.kb, "archive")
         self.assertTrue(os.path.isdir(archive_dir))
         self.assertEqual(len(os.listdir(archive_dir)), 1)
 
-        with open(os.path.join(self.kb, "architecture.md")) as f:
+        with open(os.path.join(self.kb, "decisions.md")) as f:
             remaining = f.read()
         self.assertIn("## Section 5", remaining)
         self.assertIn("## Section 4", remaining)
@@ -906,7 +906,7 @@ class TestKbArchiveCli(CliTestCase):
         ))
         self.assertEqual(len(data), 1)
         entry = data[0]
-        self.assertEqual(entry["source_file"], "architecture.md")
+        self.assertEqual(entry["source_file"], "decisions.md")
         self.assertEqual(entry["archived_sections"], 4)
         self.assertIn("archive", entry["archive_file"])
         self.assertGreater(entry["remaining_lines"], 0)
@@ -917,7 +917,7 @@ class TestKbArchiveCli(CliTestCase):
             "kb_archive.py", "run", "--threshold", "10", "--keep-sections", "1",
             "--cwd", ".",
         )
-        with open(os.path.join(self.kb, "architecture.md")) as f:
+        with open(os.path.join(self.kb, "decisions.md")) as f:
             remaining = f.read()
         self.assertIn("## Section 5", remaining)
         self.assertNotIn("## Section 4", remaining)
@@ -1156,6 +1156,11 @@ class TestTeamCli(CliTestCase):
     def team_path(self):
         return os.path.join(self.hody, "team.yaml")
 
+    def with_members(self):
+        """A team with members, so an unlisted user falls back to developer
+        (with no members at all everyone is lead -- the solo-project case)."""
+        write(self.team_path(), "members:\n  - name: bob\n    role: lead\n")
+
     def test_init_creates_team_yaml(self):
         result = self.run_cli("team.py", "init", "--cwd", ".")
         self.assertOk(result)
@@ -1219,6 +1224,7 @@ class TestTeamCli(CliTestCase):
 
     def test_check_agent_denied_exits_one(self):
         """R-9: denial is exit 1 -- never chain this under &&."""
+        self.with_members()
         result = self.run_cli(
             "team.py", "check-agent", "devops", "--user", "alice", "--cwd", ".",
         )
@@ -1226,6 +1232,7 @@ class TestTeamCli(CliTestCase):
         self.assertIn("DENIED:", result.stdout)
 
     def test_check_agent_json_payload(self):
+        self.with_members()
         result = self.run_cli(
             "team.py", "check-agent", "devops", "--user", "alice",
             "--json", "--cwd", ".",
@@ -1256,6 +1263,7 @@ class TestTeamCli(CliTestCase):
         self.assertEqual(data["role"], "lead")
 
     def test_check_workflow_denied_for_a_developer(self):
+        self.with_members()
         result = self.run_cli(
             "team.py", "check-workflow", "skip_agent", "--user", "alice",
             "--json", "--cwd", ".",

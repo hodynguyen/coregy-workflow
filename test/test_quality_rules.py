@@ -410,3 +410,38 @@ class TestSecretsIgnorePaths(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class TestDefaultConfigRoundTrip(unittest.TestCase):
+    """The plugin's own default quality-rules.yaml must parse to what it says.
+
+    Before v0.13.1 the fixed-indent parser flattened `languages` into a list
+    (disabling debug checks) and turned custom_patterns into strings.
+    """
+
+    def test_default_config_parses_to_default_rules(self):
+        from quality_rules import _parse_yaml_simple, generate_default_config
+        rules = _parse_yaml_simple(generate_default_config())["rules"]
+        self.assertEqual(rules["debug_statements"]["languages"]["javascript"],
+                         ["console.log", "debugger"])
+        self.assertEqual(rules["secrets"]["custom_patterns"],
+                         [{"pattern": "STRIPE_SECRET",
+                           "message": "Stripe secret key detected"}])
+        self.assertEqual(rules["secrets"]["ignore_paths"], [])
+
+    def test_checks_still_fire_with_default_config_on_disk(self):
+        from quality_rules import run_checks, generate_default_config
+        with tempfile.TemporaryDirectory() as cwd:
+            os.makedirs(os.path.join(cwd, ".hody"))
+            with open(os.path.join(cwd, ".hody", "quality-rules.yaml"), "w") as f:
+                f.write(generate_default_config())
+            result = run_checks(cwd, "a.js", 'console.log(1)\nconst k = "STRIPE_SECRET"\n')
+            self.assertTrue(any("console.log" in w["message"] for w in result["warnings"]))
+            self.assertTrue(any("Stripe" in e["message"] for e in result["errors"]))
+
+    def test_directory_ignore_matches_whole_segments(self):
+        from quality_rules import matches_ignore_path
+        self.assertTrue(matches_ignore_path("test/a.py", ["test/"]))
+        self.assertTrue(matches_ignore_path("src/test/a.py", ["test/"]))
+        self.assertFalse(matches_ignore_path("src/attestation/a.js", ["test/"]))
+        self.assertFalse(matches_ignore_path("src/latest.js", ["test/"]))

@@ -383,7 +383,9 @@ def main():
     )
     sub = parser.add_subparsers(dest="command")
 
-    sub.add_parser("init", help="Create template rules.yaml", parents=[parent])
+    p_init = sub.add_parser("init", help="Create template rules.yaml", parents=[parent])
+    p_init.add_argument("--force", action="store_true",
+                        help="Overwrite an existing rules.yaml (destroys its rules)")
     sub.add_parser("validate", help="Validate existing rules.yaml", parents=[parent])
     sub.add_parser("summary", help="Print condensed summary", parents=[parent])
     sub.add_parser("show", help="Pretty-print all rules", parents=[parent])
@@ -395,8 +397,12 @@ def main():
 
     if args.command == "init":
         path = os.path.join(cwd, ".hody", RULES_FILE)
-        if os.path.isfile(path):
-            print("WARNING: %s already exists" % path, file=sys.stderr)
+        if os.path.isfile(path) and not args.force:
+            # /init runs this on every re-init; overwriting would silently
+            # wipe the user's rules.
+            print("%s already exists -- left untouched (use --force to "
+                  "overwrite)" % path, file=sys.stderr)
+            sys.exit(1)
         write_default_config(cwd)
         print("Created %s" % os.path.join(cwd, ".hody", RULES_FILE))
 

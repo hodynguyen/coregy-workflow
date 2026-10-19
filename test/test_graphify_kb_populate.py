@@ -118,10 +118,27 @@ class TestGenerateSection(unittest.TestCase):
         self.assertIn("### High-Coupling Nodes", section)
         self.assertIn("### Edge Relation Summary", section)
 
-    def test_contains_frontmatter(self):
+    def test_contains_section_metadata_comment(self):
         section = generate_section(SAMPLE_NODES, SAMPLE_EDGES, "graph.json")
-        self.assertIn("tags: [graphify, architecture, auto-generated]", section)
         self.assertIn("author_agent: graphify_kb_populate", section)
+        self.assertIn("tags: graphify, architecture, auto-generated -->", section)
+        # a mid-file `---` block is not frontmatter -- must not be emitted
+        self.assertNotIn("\n---\n", section)
+
+    def test_rewrite_keeps_real_frontmatter(self):
+        with tempfile.TemporaryDirectory() as cwd:
+            kb = os.path.join(cwd, ".hody", "knowledge")
+            os.makedirs(kb)
+            path = os.path.join(kb, "architecture.md")
+            with open(path, "w") as f:
+                f.write("---\ntags: [architecture]\nstatus: active\n---\n\n")
+            section = generate_section(SAMPLE_NODES, SAMPLE_EDGES, "graph.json")
+            append_to_architecture(cwd, section)
+            append_to_architecture(cwd, section)  # replace path
+            with open(path) as f:
+                content = f.read()
+            self.assertTrue(content.startswith("---\ntags: [architecture]\nstatus: active\n---\n"))
+            self.assertEqual(content.count("## Graph-Derived Architecture"), 1)
 
     def test_contains_node_counts(self):
         section = generate_section(SAMPLE_NODES, SAMPLE_EDGES, "graph.json")
