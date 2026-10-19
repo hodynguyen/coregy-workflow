@@ -9,7 +9,7 @@ SCRIPT_DIR = os.path.join(
     os.path.dirname(__file__),
     "..",
     "plugins",
-    "hody-workflow",
+    "coregy-workflow",
     "skills",
     "project-profile",
     "scripts",
@@ -127,7 +127,7 @@ class TestGenerateSection(unittest.TestCase):
 
     def test_rewrite_keeps_real_frontmatter(self):
         with tempfile.TemporaryDirectory() as cwd:
-            kb = os.path.join(cwd, ".hody", "knowledge")
+            kb = os.path.join(cwd, ".coregy", "knowledge")
             os.makedirs(kb)
             path = os.path.join(kb, "architecture.md")
             with open(path, "w") as f:
@@ -152,7 +152,7 @@ class TestGenerateSection(unittest.TestCase):
 
 class TestAppendToArchitecture(unittest.TestCase):
     def _setup_kb(self, tmpdir, content="# Architecture\n\nExisting content.\n"):
-        kb_dir = os.path.join(tmpdir, ".hody", "knowledge")
+        kb_dir = os.path.join(tmpdir, ".coregy", "knowledge")
         os.makedirs(kb_dir)
         path = os.path.join(kb_dir, "architecture.md")
         with open(path, "w") as f:

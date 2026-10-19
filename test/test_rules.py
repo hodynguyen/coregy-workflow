@@ -10,7 +10,7 @@ SCRIPT_DIR = os.path.join(
     os.path.dirname(__file__),
     "..",
     "plugins",
-    "hody-workflow",
+    "coregy-workflow",
     "skills",
     "project-profile",
     "scripts",
@@ -124,9 +124,9 @@ class TestParseRulesYaml(unittest.TestCase):
 class TestLoadRules(unittest.TestCase):
     def test_load_valid_file(self):
         with tempfile.TemporaryDirectory() as tmp:
-            hody = os.path.join(tmp, ".hody")
-            os.makedirs(hody)
-            with open(os.path.join(hody, "rules.yaml"), "w") as f:
+            coregy = os.path.join(tmp, ".coregy")
+            os.makedirs(coregy)
+            with open(os.path.join(coregy, "rules.yaml"), "w") as f:
                 f.write(SAMPLE_RULES)
             result = load_rules(tmp)
             self.assertIsNotNone(result)
@@ -136,23 +136,23 @@ class TestLoadRules(unittest.TestCase):
         with tempfile.TemporaryDirectory() as tmp:
             self.assertIsNone(load_rules(tmp))
 
-    def test_missing_hody_dir(self):
+    def test_missing_coregy_dir(self):
         with tempfile.TemporaryDirectory() as tmp:
             self.assertIsNone(load_rules(tmp))
 
     def test_empty_file(self):
         with tempfile.TemporaryDirectory() as tmp:
-            hody = os.path.join(tmp, ".hody")
-            os.makedirs(hody)
-            with open(os.path.join(hody, "rules.yaml"), "w") as f:
+            coregy = os.path.join(tmp, ".coregy")
+            os.makedirs(coregy)
+            with open(os.path.join(coregy, "rules.yaml"), "w") as f:
                 f.write("")
             self.assertIsNone(load_rules(tmp))
 
     def test_comment_only_file(self):
         with tempfile.TemporaryDirectory() as tmp:
-            hody = os.path.join(tmp, ".hody")
-            os.makedirs(hody)
-            with open(os.path.join(hody, "rules.yaml"), "w") as f:
+            coregy = os.path.join(tmp, ".coregy")
+            os.makedirs(coregy)
+            with open(os.path.join(coregy, "rules.yaml"), "w") as f:
                 f.write("# Just comments\n# Nothing else\n")
             result = load_rules(tmp)
             # Parsed as empty dict, but not None
@@ -199,7 +199,7 @@ class TestSummarizeRules(unittest.TestCase):
         self.assertIn("2 naming", summary)
         self.assertIn("1 forbidden", summary)
         self.assertIn("2 custom", summary)
-        self.assertIn(".hody/rules.yaml", summary)
+        self.assertIn(".coregy/rules.yaml", summary)
 
     def test_empty_categories_omitted(self):
         content = 'version: "1"\ncoding:\ncustom:\n  - "Only rule"\n'
@@ -245,9 +245,9 @@ class TestGetRulesForCategory(unittest.TestCase):
 class TestGetRulesSummary(unittest.TestCase):
     def test_with_rules(self):
         with tempfile.TemporaryDirectory() as tmp:
-            hody = os.path.join(tmp, ".hody")
-            os.makedirs(hody)
-            with open(os.path.join(hody, "rules.yaml"), "w") as f:
+            coregy = os.path.join(tmp, ".coregy")
+            os.makedirs(coregy)
+            with open(os.path.join(coregy, "rules.yaml"), "w") as f:
                 f.write(SAMPLE_RULES)
             summary = get_rules_summary(tmp)
             self.assertTrue(summary["exists"])
@@ -264,9 +264,9 @@ class TestGetRulesSummary(unittest.TestCase):
 
     def test_total_count(self):
         with tempfile.TemporaryDirectory() as tmp:
-            hody = os.path.join(tmp, ".hody")
-            os.makedirs(hody)
-            with open(os.path.join(hody, "rules.yaml"), "w") as f:
+            coregy = os.path.join(tmp, ".coregy")
+            os.makedirs(coregy)
+            with open(os.path.join(coregy, "rules.yaml"), "w") as f:
                 f.write(SAMPLE_RULES)
             summary = get_rules_summary(tmp)
             # 2 naming + 1 forbidden + 1 boundary + 1 req + 1 cov + 1 pref + 2 custom = 9
@@ -296,10 +296,10 @@ class TestWriteDefaultConfig(unittest.TestCase):
                 content = f.read()
             self.assertIn("version:", content)
 
-    def test_creates_hody_dir(self):
+    def test_creates_coregy_dir(self):
         with tempfile.TemporaryDirectory() as tmp:
             write_default_config(tmp)
-            self.assertTrue(os.path.isdir(os.path.join(tmp, ".hody")))
+            self.assertTrue(os.path.isdir(os.path.join(tmp, ".coregy")))
 
 
 class TestCLI(unittest.TestCase):
@@ -307,7 +307,7 @@ class TestCLI(unittest.TestCase):
         os.path.dirname(__file__),
         "..",
         "plugins",
-        "hody-workflow",
+        "coregy-workflow",
         "skills",
         "project-profile",
         "scripts",
@@ -322,12 +322,12 @@ class TestCLI(unittest.TestCase):
             )
             self.assertEqual(result.returncode, 0)
             self.assertTrue(
-                os.path.isfile(os.path.join(tmp, ".hody", "rules.yaml"))
+                os.path.isfile(os.path.join(tmp, ".coregy", "rules.yaml"))
             )
 
     def test_init_never_overwrites_without_force(self):
         with tempfile.TemporaryDirectory() as tmp:
-            path = os.path.join(tmp, ".hody", "rules.yaml")
+            path = os.path.join(tmp, ".coregy", "rules.yaml")
             os.makedirs(os.path.dirname(path))
             with open(path, "w") as f:
                 f.write('version: "1"\ncustom:\n  - "keep me"\n')
@@ -348,9 +348,9 @@ class TestCLI(unittest.TestCase):
 
     def test_validate_valid(self):
         with tempfile.TemporaryDirectory() as tmp:
-            hody = os.path.join(tmp, ".hody")
-            os.makedirs(hody)
-            with open(os.path.join(hody, "rules.yaml"), "w") as f:
+            coregy = os.path.join(tmp, ".coregy")
+            os.makedirs(coregy)
+            with open(os.path.join(coregy, "rules.yaml"), "w") as f:
                 f.write(SAMPLE_RULES)
             result = subprocess.run(
                 [sys.executable, self.SCRIPT, "validate", "--cwd", tmp],
@@ -370,9 +370,9 @@ class TestCLI(unittest.TestCase):
 
     def test_summary_output(self):
         with tempfile.TemporaryDirectory() as tmp:
-            hody = os.path.join(tmp, ".hody")
-            os.makedirs(hody)
-            with open(os.path.join(hody, "rules.yaml"), "w") as f:
+            coregy = os.path.join(tmp, ".coregy")
+            os.makedirs(coregy)
+            with open(os.path.join(coregy, "rules.yaml"), "w") as f:
                 f.write(SAMPLE_RULES)
             result = subprocess.run(
                 [sys.executable, self.SCRIPT, "summary", "--cwd", tmp],

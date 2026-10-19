@@ -9,7 +9,7 @@ SCRIPT_DIR = os.path.join(
     os.path.dirname(__file__),
     "..",
     "plugins",
-    "hody-workflow",
+    "coregy-workflow",
     "skills",
     "knowledge-base",
     "scripts",
@@ -20,7 +20,7 @@ from kb_sync import validate_kb, sync_status, KB_FILES
 
 
 class TestValidateKB(unittest.TestCase):
-    def test_no_hody_dir(self):
+    def test_no_coregy_dir(self):
         with tempfile.TemporaryDirectory() as tmpdir:
             valid, msg = validate_kb(tmpdir)
             self.assertFalse(valid)
@@ -28,7 +28,7 @@ class TestValidateKB(unittest.TestCase):
 
     def test_empty_kb(self):
         with tempfile.TemporaryDirectory() as tmpdir:
-            kb_path = os.path.join(tmpdir, ".hody", "knowledge")
+            kb_path = os.path.join(tmpdir, ".coregy", "knowledge")
             os.makedirs(kb_path)
             valid, msg = validate_kb(tmpdir)
             self.assertFalse(valid)
@@ -36,7 +36,7 @@ class TestValidateKB(unittest.TestCase):
 
     def test_valid_kb(self):
         with tempfile.TemporaryDirectory() as tmpdir:
-            kb_path = os.path.join(tmpdir, ".hody", "knowledge")
+            kb_path = os.path.join(tmpdir, ".coregy", "knowledge")
             os.makedirs(kb_path)
             with open(os.path.join(kb_path, "architecture.md"), "w") as f:
                 f.write("# Architecture\n")
@@ -46,7 +46,7 @@ class TestValidateKB(unittest.TestCase):
 
     def test_multiple_files(self):
         with tempfile.TemporaryDirectory() as tmpdir:
-            kb_path = os.path.join(tmpdir, ".hody", "knowledge")
+            kb_path = os.path.join(tmpdir, ".coregy", "knowledge")
             os.makedirs(kb_path)
             for fname in KB_FILES:
                 with open(os.path.join(kb_path, fname), "w") as f:
@@ -64,7 +64,7 @@ class TestSyncStatus(unittest.TestCase):
 
     def test_partial_kb(self):
         with tempfile.TemporaryDirectory() as tmpdir:
-            kb_path = os.path.join(tmpdir, ".hody", "knowledge")
+            kb_path = os.path.join(tmpdir, ".coregy", "knowledge")
             os.makedirs(kb_path)
             with open(os.path.join(kb_path, "architecture.md"), "w") as f:
                 f.write("# Architecture\n\nSystem overview here.\n")
@@ -74,7 +74,7 @@ class TestSyncStatus(unittest.TestCase):
 
     def test_full_kb(self):
         with tempfile.TemporaryDirectory() as tmpdir:
-            kb_path = os.path.join(tmpdir, ".hody", "knowledge")
+            kb_path = os.path.join(tmpdir, ".coregy", "knowledge")
             os.makedirs(kb_path)
             for fname in KB_FILES:
                 with open(os.path.join(kb_path, fname), "w") as f:

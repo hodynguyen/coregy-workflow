@@ -9,7 +9,7 @@ SCRIPT_DIR = os.path.join(
     os.path.dirname(__file__),
     "..",
     "plugins",
-    "hody-workflow",
+    "coregy-workflow",
     "skills",
     "project-profile",
     "scripts",
@@ -28,7 +28,7 @@ from auto_track import (
 class TestMetaCommand(unittest.TestCase):
     def test_slash_command(self):
         self.assertTrue(is_meta_command("/help"))
-        self.assertTrue(is_meta_command("/hody-workflow:start-feature add auth"))
+        self.assertTrue(is_meta_command("/coregy-workflow:start-feature add auth"))
 
     def test_shell_prefix(self):
         self.assertTrue(is_meta_command("!ls"))
@@ -140,7 +140,7 @@ class TestDetectIntent(unittest.TestCase):
         self.assertIsNone(detect_intent("how do I add a new endpoint"))
 
     def test_meta_command_returns_none(self):
-        self.assertIsNone(detect_intent("/hody-workflow:status"))
+        self.assertIsNone(detect_intent("/coregy-workflow:status"))
         self.assertIsNone(detect_intent("!ls -la"))
 
     def test_empty_returns_none(self):

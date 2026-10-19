@@ -22,7 +22,7 @@ import tempfile
 import unittest
 
 REPO_ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
-PLUGIN_ROOT_DIR = os.path.join(REPO_ROOT, "plugins", "hody-workflow")
+PLUGIN_ROOT_DIR = os.path.join(REPO_ROOT, "plugins", "coregy-workflow")
 SCRIPTS_DIR = os.path.join(
     PLUGIN_ROOT_DIR, "skills", "project-profile", "scripts"
 )
@@ -81,16 +81,16 @@ def digest_tree(root):
 
 
 class CliTestCase(unittest.TestCase):
-    """Temp project fixture. Never touches the repo's real .hody/."""
+    """Temp project fixture. Never touches the repo's real .coregy/."""
 
     def setUp(self):
         self.tmpdir = tempfile.mkdtemp()
-        self.hody = os.path.join(self.tmpdir, ".hody")
-        self.kb = os.path.join(self.hody, "knowledge")
+        self.coregy = os.path.join(self.tmpdir, ".coregy")
+        self.kb = os.path.join(self.coregy, "knowledge")
         os.makedirs(self.kb)
         self.env = dict(os.environ)
         # Deterministic identity for team.py / anything reading git config.
-        self.env["HODY_USER"] = "tester"
+        self.env["COREGY_USER"] = "tester"
 
     def tearDown(self):
         shutil.rmtree(self.tmpdir, ignore_errors=True)
@@ -115,7 +115,7 @@ class CliTestCase(unittest.TestCase):
 
 
 # =====================================================================
-# Contract shared by all 7 CLIs (hody-cli-v1)
+# Contract shared by all 7 CLIs (coregy-cli-v1)
 # =====================================================================
 
 
@@ -154,11 +154,11 @@ class TestCliConventions(CliTestCase):
             )
 
     def test_cwd_works_before_the_subcommand_too(self):
-        """hody-cli-v1 point 1: the shared parent parser puts --cwd on both
+        """coregy-cli-v1 point 1: the shared parent parser puts --cwd on both
         sides. Every other test passes it after the subcommand, so this covers
         the other half -- and proves the value is really used, not ignored.
         """
-        # health.py: the only project signal is the .hody/ dir in tmpdir.
+        # health.py: the only project signal is the .coregy/ dir in tmpdir.
         result = run_script("health.py", ["--cwd", self.tmpdir, "report"],
                             cwd=REPO_ROOT, env=self.env)
         self.assertEqual(result.returncode, 0, result.stderr)
@@ -232,7 +232,7 @@ class StateCliTestCase(CliTestCase):
         return self.state(*(args + list(extra)))
 
     def read_state(self):
-        with open(os.path.join(self.hody, "state.json")) as f:
+        with open(os.path.join(self.coregy, "state.json")) as f:
             return json.load(f)
 
 
@@ -243,7 +243,7 @@ class TestStateInitWorkflow(StateCliTestCase):
         self.assertEqual(data["execution_mode"], "guided")
         self.assertEqual(data["spec_file"], "spec-test.md")
         self.assertEqual(data["phase_order"], ["THINK", "BUILD", "VERIFY"])
-        self.assertTrue(os.path.isfile(os.path.join(self.hody, "state.json")))
+        self.assertTrue(os.path.isfile(os.path.join(self.coregy, "state.json")))
         self.assertTrue(
             os.path.isfile(os.path.join(self.kb, data["log_file"])),
             "init-workflow must create the feature log",
@@ -443,7 +443,7 @@ class TestStateAgentLifecycle(StateCliTestCase):
         self.assertIn("[ ] architect", out)
         self.assertTrue(
             all(ord(c) < 128 or c == "━" for c in out),
-            "show output must stay ASCII (hody-cli-v1 point 6)",
+            "show output must stay ASCII (coregy-cli-v1 point 6)",
         )
 
     def test_show_markers_reflect_agent_status(self):
@@ -557,7 +557,7 @@ class TestStateLegacySchema(StateCliTestCase):
 
     def setUp(self):
         CliTestCase.setUp(self)
-        self.state_path = os.path.join(self.hody, "state.json")
+        self.state_path = os.path.join(self.coregy, "state.json")
         write(self.state_path, json.dumps(LEGACY_STATE, indent=2))
 
     def test_show_json_fills_in_the_missing_fields(self):
@@ -584,12 +584,12 @@ class TestStateLegacySchema(StateCliTestCase):
 
     def test_read_only_subcommands_do_not_write(self):
         """show/next-agent normalise in memory only."""
-        before = digest_tree(self.hody)
+        before = digest_tree(self.coregy)
         self.assertOk(self.state("show", "--cwd", "."))
         self.assertOk(self.state("show", "--json", "--cwd", "."))
         self.assertOk(self.state("next-agent", "--cwd", "."))
         self.assertOk(self.state("next-agent", "--json", "--cwd", "."))
-        self.assertEqual(before, digest_tree(self.hody))
+        self.assertEqual(before, digest_tree(self.coregy))
 
     def test_next_agent_works(self):
         data = self.json_out(self.state("next-agent", "--json", "--cwd", "."))
@@ -660,7 +660,7 @@ class TestStateLegacySchema(StateCliTestCase):
 class TestHealthCli(CliTestCase):
     def setUp(self):
         CliTestCase.setUp(self)
-        write(os.path.join(self.hody, "profile.yaml"),
+        write(os.path.join(self.coregy, "profile.yaml"),
               "project:\n  name: fixture-project\n  type: python\n")
         write(os.path.join(self.kb, "architecture.md"),
               "---\ntags: [arch]\nauthor_agent: architect\nstatus: active\n---\n"
@@ -714,15 +714,15 @@ class TestHealthCli(CliTestCase):
         )
         self.assertEqual(result.returncode, 2)
 
-    def test_missing_hody_dir_exits_one(self):
+    def test_missing_coregy_dir_exits_one(self):
         """R-12: /health branches on this exit code."""
-        shutil.rmtree(self.hody)
+        shutil.rmtree(self.coregy)
         result = self.run_cli("health.py", "report", "--cwd", ".")
         self.assertEqual(result.returncode, 1)
-        self.assertIn("run /hody-workflow:init first", result.stderr)
+        self.assertIn("run /coregy-workflow:init first", result.stderr)
 
-    def test_missing_hody_dir_json_error_payload(self):
-        shutil.rmtree(self.hody)
+    def test_missing_coregy_dir_json_error_payload(self):
+        shutil.rmtree(self.coregy)
         result = self.run_cli("health.py", "report", "--json", "--cwd", ".")
         self.assertEqual(result.returncode, 1)
         self.assertFalse(json.loads(result.stdout)["ok"])
@@ -1070,7 +1070,7 @@ class TestContractsCli(CliTestCase):
         # Point --kb-dir at the repo's own KB, which architect really did fill in.
         populated = self.json_out(self.run_cli(
             "contracts.py", "validate", "--from", "architect", "--to", "backend",
-            "--kb-dir", os.path.join(REPO_ROOT, ".hody", "knowledge"),
+            "--kb-dir", os.path.join(REPO_ROOT, ".coregy", "knowledge"),
             "--json", "--cwd", ".",
         ))
         self.assertLess(len(populated["warnings"]), len(empty["warnings"]))
@@ -1154,7 +1154,7 @@ class TestCiMonitorCli(CliTestCase):
 
 class TestTeamCli(CliTestCase):
     def team_path(self):
-        return os.path.join(self.hody, "team.yaml")
+        return os.path.join(self.coregy, "team.yaml")
 
     def with_members(self):
         """A team with members, so an unlisted user falls back to developer
@@ -1164,7 +1164,7 @@ class TestTeamCli(CliTestCase):
     def test_init_creates_team_yaml(self):
         result = self.run_cli("team.py", "init", "--cwd", ".")
         self.assertOk(result)
-        self.assertIn("Created .hody/team.yaml", result.stdout)
+        self.assertIn("Created .coregy/team.yaml", result.stdout)
         self.assertTrue(os.path.isfile(self.team_path()))
         with open(self.team_path()) as f:
             self.assertIn("roles:", f.read())
@@ -1185,8 +1185,8 @@ class TestTeamCli(CliTestCase):
         with open(self.team_path()) as f:
             self.assertNotIn("custom", f.read())
 
-    def test_init_creates_the_hody_dir_if_absent(self):
-        shutil.rmtree(self.hody)
+    def test_init_creates_the_coregy_dir_if_absent(self):
+        shutil.rmtree(self.coregy)
         result = self.run_cli("team.py", "init", "--cwd", ".")
         self.assertOk(result)
         self.assertTrue(os.path.isfile(self.team_path()))
@@ -1203,7 +1203,7 @@ class TestTeamCli(CliTestCase):
         result = self.run_cli("team.py", "show", "--cwd", ".")
         self.assertOk(result)
         self.assertNotIn("(no team.yaml", result.stdout)
-        self.assertIn("Team (.hody/team.yaml)", result.stdout)
+        self.assertIn("Team (.coregy/team.yaml)", result.stdout)
         self.assertIn("Current user: tester", result.stdout)
 
     def test_show_json(self):
@@ -1511,7 +1511,7 @@ class TestCompleteAgentWithoutStartAgent(unittest.TestCase):
         ], cwd=self.tmp)
 
     def _log(self):
-        with open(os.path.join(self.tmp, ".hody", "state.json")) as f:
+        with open(os.path.join(self.tmp, ".coregy", "state.json")) as f:
             return json.load(f)["agent_log"]
 
     def test_completing_an_unstarted_agent_still_logs_it(self):
@@ -1569,7 +1569,7 @@ class TestAgentsUseTheStateMachine(unittest.TestCase):
         offenders = []
         for path in agent_files():
             with open(path, encoding="utf-8") as f:
-                if "Update `.hody/state.json`:" in f.read():
+                if "Update `.coregy/state.json`:" in f.read():
                     offenders.append(os.path.basename(path))
         self.assertEqual(offenders, [])
 

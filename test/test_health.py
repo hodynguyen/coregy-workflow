@@ -9,7 +9,7 @@ SCRIPTS_DIR = os.path.join(
     os.path.dirname(__file__),
     "..",
     "plugins",
-    "hody-workflow",
+    "coregy-workflow",
     "skills",
     "project-profile",
     "scripts",
@@ -305,11 +305,11 @@ class TestBuildHealthReport(unittest.TestCase):
     def test_build_health_report(self):
         """Full report structure has all expected keys."""
         with tempfile.TemporaryDirectory() as tmpdir:
-            hody_dir = os.path.join(tmpdir, ".hody")
-            kb_dir = os.path.join(hody_dir, "knowledge")
+            coregy_dir = os.path.join(tmpdir, ".coregy")
+            kb_dir = os.path.join(coregy_dir, "knowledge")
             os.makedirs(kb_dir)
             _write_file(
-                os.path.join(hody_dir, "profile.yaml"),
+                os.path.join(coregy_dir, "profile.yaml"),
                 "project:\n  name: test-app\n  type: fullstack\n",
             )
             _write_file(
@@ -388,7 +388,7 @@ class TestGenerateRecommendations(unittest.TestCase):
         }
         recs = generate_recommendations(report)
         self.assertTrue(
-            any("/hody-workflow:update-kb" in r for r in recs),
+            any("/coregy-workflow:update-kb" in r for r in recs),
             "Should recommend update-kb for low KB completeness",
         )
 
@@ -446,7 +446,7 @@ class TestGenerateRecommendations(unittest.TestCase):
         }
         recs = generate_recommendations(report)
         self.assertTrue(
-            any("/hody-workflow:start-feature" in r for r in recs),
+            any("/coregy-workflow:start-feature" in r for r in recs),
             "Should recommend start-feature",
         )
 

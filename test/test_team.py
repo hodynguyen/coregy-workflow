@@ -10,7 +10,7 @@ SCRIPTS_DIR = os.path.join(
     os.path.dirname(__file__),
     "..",
     "plugins",
-    "hody-workflow",
+    "coregy-workflow",
     "skills",
     "project-profile",
     "scripts",
@@ -66,7 +66,7 @@ class TestDefaultRoles(unittest.TestCase):
 
 class TestLoadTeamConfig(unittest.TestCase):
     def test_load_team_config_no_file(self):
-        """Returns default config when .hody/team.yaml doesn't exist."""
+        """Returns default config when .coregy/team.yaml doesn't exist."""
         with tempfile.TemporaryDirectory() as tmpdir:
             config = load_team_config(tmpdir)
             self.assertIn("roles", config)
@@ -76,11 +76,11 @@ class TestLoadTeamConfig(unittest.TestCase):
             self.assertIn("developer", config["roles"])
 
     def test_load_team_config_custom(self):
-        """Reads .hody/team.yaml correctly."""
+        """Reads .coregy/team.yaml correctly."""
         with tempfile.TemporaryDirectory() as tmpdir:
-            hody_dir = os.path.join(tmpdir, ".hody")
-            os.makedirs(hody_dir)
-            with open(os.path.join(hody_dir, "team.yaml"), "w") as f:
+            coregy_dir = os.path.join(tmpdir, ".coregy")
+            os.makedirs(coregy_dir)
+            with open(os.path.join(coregy_dir, "team.yaml"), "w") as f:
                 f.write(
                     "roles:\n"
                     "  lead:\n"
@@ -101,9 +101,9 @@ class TestLoadTeamConfig(unittest.TestCase):
 
 
 class TestGetCurrentUser(unittest.TestCase):
-    @patch.dict(os.environ, {"HODY_USER": "testuser"})
+    @patch.dict(os.environ, {"COREGY_USER": "testuser"})
     def test_get_current_user_from_env(self):
-        """Reads HODY_USER env var."""
+        """Reads COREGY_USER env var."""
         with tempfile.TemporaryDirectory() as tmpdir:
             user = get_current_user(tmpdir)
             self.assertEqual(user, "testuser")
@@ -117,8 +117,8 @@ class TestGetCurrentUser(unittest.TestCase):
         mock_result.stdout = "gituser\n"
         mock_run.return_value = mock_result
 
-        # Ensure HODY_USER is not set
-        os.environ.pop("HODY_USER", None)
+        # Ensure COREGY_USER is not set
+        os.environ.pop("COREGY_USER", None)
 
         with tempfile.TemporaryDirectory() as tmpdir:
             user = get_current_user(tmpdir)
@@ -129,7 +129,7 @@ class TestGetCurrentUser(unittest.TestCase):
     @patch("team.subprocess.run", side_effect=FileNotFoundError)
     def test_get_current_user_no_git(self, mock_run):
         """Returns None gracefully when git is not available."""
-        os.environ.pop("HODY_USER", None)
+        os.environ.pop("COREGY_USER", None)
 
         with tempfile.TemporaryDirectory() as tmpdir:
             user = get_current_user(tmpdir)
@@ -291,9 +291,9 @@ class TestGetTeamSummary(unittest.TestCase):
     def test_get_team_summary(self, mock_user):
         """Returns correct structure."""
         with tempfile.TemporaryDirectory() as tmpdir:
-            hody_dir = os.path.join(tmpdir, ".hody")
-            os.makedirs(hody_dir)
-            with open(os.path.join(hody_dir, "team.yaml"), "w") as f:
+            coregy_dir = os.path.join(tmpdir, ".coregy")
+            os.makedirs(coregy_dir)
+            with open(os.path.join(coregy_dir, "team.yaml"), "w") as f:
                 f.write(
                     "roles:\n"
                     "  lead:\n"

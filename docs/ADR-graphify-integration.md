@@ -1,6 +1,6 @@
 # ADR: Graphify Knowledge Graph Integration
 
-> Architecture Decision Record for integrating Graphify into the Hody Workflow plugin.
+> Architecture Decision Record for integrating Graphify into the Coregy Workflow plugin.
 
 | Field       | Value                                |
 |-------------|--------------------------------------|
@@ -31,7 +31,7 @@
 
 ### The Problem
 
-Hody Workflow agents currently operate with two sources of structural knowledge: the project profile (`.hody/profile.yaml`) and the accumulated knowledge base (`.hody/knowledge/`). Both are text-based and manually curated. When an agent needs to answer questions like "what calls this function?", "what is the blast radius of changing this module?", or "which components depend on this service?", it must either:
+Coregy Workflow agents currently operate with two sources of structural knowledge: the project profile (`.coregy/profile.yaml`) and the accumulated knowledge base (`.coregy/knowledge/`). Both are text-based and manually curated. When an agent needs to answer questions like "what calls this function?", "what is the blast radius of changing this module?", or "which components depend on this service?", it must either:
 
 1. **Read source files directly** -- which consumes enormous context window budget (a 61-file Python project is ~50K tokens of raw source), or
 2. **Rely on KB entries** -- which are only as good as what previous agents wrote, and go stale as code changes.
@@ -54,7 +54,7 @@ The key insight: agents do not need to read source code to understand structure.
 
 The plugin is at v0.7.1 with all 6 original phases complete. The next capability gap is structural code intelligence. Graphify is a natural fit because:
 
-- It already exposes an MCP server (7 tools), which aligns with the plugin's existing MCP integration pattern (`/hody-workflow:connect`)
+- It already exposes an MCP server (7 tools), which aligns with the plugin's existing MCP integration pattern (`/coregy-workflow:connect`)
 - It is optional and does not require changes to the core detection pipeline
 - The graph is filesystem-based (JSON), matching the plugin's "no persistent state except filesystem" constraint
 - It addresses the most common agent limitation reported: lack of call-graph and dependency awareness
@@ -63,7 +63,7 @@ The plugin is at v0.7.1 with all 6 original phases complete. The next capability
 
 ## 2. Decision
 
-**Integrate Graphify as an optional MCP-based capability, following the same pattern as GitHub/Linear/Jira integrations.** Graphify will be registered via `/hody-workflow:connect graphify`, its MCP tools will be available to agents that declare them, and the SessionStart hook will inject a graph summary when a graph is available.
+**Integrate Graphify as an optional MCP-based capability, following the same pattern as GitHub/Linear/Jira integrations.** Graphify will be registered via `/coregy-workflow:connect graphify`, its MCP tools will be available to agents that declare them, and the SessionStart hook will inject a graph summary when a graph is available.
 
 ### Design Principles
 
@@ -128,11 +128,11 @@ The plugin is at v0.7.1 with all 6 original phases complete. The next capability
 
 ```
 ┌──────────────────────────────────────────────────────────────────────┐
-│                        HODY WORKFLOW PLUGIN                          │
+│                        COREGY WORKFLOW PLUGIN                          │
 │                                                                      │
 │  ┌────────────────────┐    ┌──────────────────────────────────────┐  │
 │  │  LAYER 1: PROFILE  │    │  GRAPHIFY (optional, external)      │  │
-│  │  .hody/profile.yaml│    │                                      │  │
+│  │  .coregy/profile.yaml│    │                                      │  │
 │  │  integrations:     │    │  graphify-out/                       │  │
 │  │    graphify: true  │───>│  ├── graph.json  (nodes + edges)    │  │
 │  └────────────────────┘    │  ├── cache/      (per-file SHA256)  │  │
@@ -140,7 +140,7 @@ The plugin is at v0.7.1 with all 6 original phases complete. The next capability
 │           v                └──────────┬───────────────────────────┘  │
 │  ┌────────────────────┐               │                              │
 │  │  LAYER 2: KB       │               │ MCP stdio                   │
-│  │  .hody/knowledge/  │<──────────────┤                              │
+│  │  .coregy/knowledge/  │<──────────────┤                              │
 │  │  (enriched by      │    ┌──────────┴───────────────────────────┐  │
 │  │   graph data)      │    │  GRAPHIFY MCP SERVER                 │  │
 │  └────────────────────┘    │  7 tools: query_graph, get_node,     │  │
@@ -162,8 +162,8 @@ User starts Claude Code session
         v
 [Hook: inject_project_context.py]
         │
-        ├── Read .hody/profile.yaml          (always)
-        ├── Read .hody/state.json            (always, if exists)
+        ├── Read .coregy/profile.yaml          (always)
+        ├── Read .coregy/state.json            (always, if exists)
         ├── Check graphify-out/graph.json    (new: if exists)
         │       │
         │       ├── YES: parse graph stats
@@ -199,11 +199,11 @@ Agent completes work, writes to KB
 ### Data Flow: Graph Build
 
 ```
-User runs /hody-workflow:init --graph
-  (or /hody-workflow:refresh --graph)
+User runs /coregy-workflow:init --graph
+  (or /coregy-workflow:refresh --graph)
         │
         v
-[detect_stack.py]  ───>  .hody/profile.yaml
+[detect_stack.py]  ───>  .coregy/profile.yaml
         │
         v
 [/graphify skill]  ───>  graphify-out/
@@ -250,7 +250,7 @@ modules can be imported directly:
 
 ### Claude Code settings.json
 
-The Graphify MCP server is registered in the user's Claude Code settings, not in the plugin itself. The `/hody-workflow:connect graphify` command guides the user to add this configuration.
+The Graphify MCP server is registered in the user's Claude Code settings, not in the plugin itself. The `/coregy-workflow:connect graphify` command guides the user to add this configuration.
 
 ```json
 {
@@ -292,7 +292,7 @@ Graphify provides its own `graphify claude install` command, which:
 - Adds a PreToolUse hook to CLAUDE.md
 - Registers the skill in Claude Code's configuration
 
-This approach installs Graphify as a standalone Claude Code skill (invoked via `/graphify`), separate from hody-workflow. It is an alternative to the MCP-based integration described here. The two approaches are compatible — a project could use both the `/graphify` skill for graph building and the hody-workflow MCP integration for agent-level graph queries.
+This approach installs Graphify as a standalone Claude Code skill (invoked via `/graphify`), separate from coregy-workflow. It is an alternative to the MCP-based integration described here. The two approaches are compatible — a project could use both the `/graphify` skill for graph building and the coregy-workflow MCP integration for agent-level graph queries.
 
 ### Verifying the MCP Server
 
@@ -328,7 +328,7 @@ Available tools:
 - `shortest_path(source, target)` — find dependency path between nodes
 
 Node ID format: path segments joined by underscores, lowercased
-Example: `plugins_hody_workflow_skills_project_profile_scripts_state_py` (file),
+Example: `plugins_coregy_workflow_skills_project_profile_scripts_state_py` (file),
          `init_workflow` (function), `testfeaturelog` (class)
 ```
 
@@ -426,7 +426,7 @@ Before modifying an existing function:
 | tree-sitter | >= 0.23.0 | Language API v2 for AST extraction |
 | networkx | any | Graph data structure and algorithms |
 
-**Note on Python version:** The hody-workflow plugin itself requires Python 3.8+. Graphify requires 3.10+. Since Graphify is optional, this does not raise the plugin's minimum version. The `/connect graphify` command must check `python3 --version` and warn if < 3.10.
+**Note on Python version:** The coregy-workflow plugin itself requires Python 3.8+. Graphify requires 3.10+. Since Graphify is optional, this does not raise the plugin's minimum version. The `/connect graphify` command must check `python3 --version` and warn if < 3.10.
 
 ### Optional (for Graphify features)
 
@@ -444,7 +444,7 @@ Before modifying an existing function:
 
 ### What the plugin does NOT depend on
 
-The hody-workflow plugin itself gains zero new dependencies. All Graphify interaction is via:
+The coregy-workflow plugin itself gains zero new dependencies. All Graphify interaction is via:
 1. MCP protocol (handled by Claude Code runtime)
 2. File existence checks in the hook (`os.path.exists`, `json.load`)
 3. Shell commands in the connect/init/refresh commands (`graphify query`, `graphify benchmark`), or the `/graphify` skill for graph building
@@ -559,7 +559,7 @@ Read first 4 KB of graph.json
 ### Phase 1 (v0.8.0) -- 3 files
 
 ```
-plugins/hody-workflow/
+plugins/coregy-workflow/
   commands/connect.md                    [MODIFY] Add Graphify integration option
   hooks/inject_project_context.py        [MODIFY] Add graph summary injection
   agents/code-reviewer.md               [MODIFY] Add Graphify MCP Tools section
@@ -568,7 +568,7 @@ plugins/hody-workflow/
 ### Phase 2 (v0.8.1) -- 5 files
 
 ```
-plugins/hody-workflow/
+plugins/coregy-workflow/
   agents/architect.md                    [MODIFY] Add Graphify MCP Tools section
   agents/backend.md                      [MODIFY] Add Graphify MCP Tools section
   agents/frontend.md                     [MODIFY] Add Graphify MCP Tools section
@@ -579,7 +579,7 @@ plugins/hody-workflow/
 ### Phase 3 (v0.8.2) -- 7+ files
 
 ```
-plugins/hody-workflow/
+plugins/coregy-workflow/
   agents/unit-tester.md                  [MODIFY] Add Graphify MCP Tools section
   agents/integration-tester.md           [MODIFY] Add Graphify MCP Tools section
   agents/spec-verifier.md               [MODIFY] Add Graphify MCP Tools section

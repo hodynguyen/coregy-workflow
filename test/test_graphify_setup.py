@@ -11,7 +11,7 @@ SCRIPTS_DIR = os.path.join(
     os.path.dirname(__file__),
     "..",
     "plugins",
-    "hody-workflow",
+    "coregy-workflow",
     "skills",
     "project-profile",
     "scripts",
@@ -173,9 +173,9 @@ class TestUpdateGitignore(unittest.TestCase):
 
 class TestUpdateProfileYaml(unittest.TestCase):
     def _make_profile(self, tmp, content):
-        hody = os.path.join(tmp, ".hody")
-        os.makedirs(hody, exist_ok=True)
-        path = os.path.join(hody, "profile.yaml")
+        coregy = os.path.join(tmp, ".coregy")
+        os.makedirs(coregy, exist_ok=True)
+        path = os.path.join(coregy, "profile.yaml")
         with open(path, "w") as f:
             f.write(content)
         return path
@@ -227,7 +227,7 @@ class TestUpdateProfileYaml(unittest.TestCase):
     def test_no_profile_file(self):
         """Should print warning and not crash when profile.yaml missing."""
         with tempfile.TemporaryDirectory() as tmp:
-            # No .hody dir at all — should not raise
+            # No .coregy dir at all — should not raise
             update_profile_yaml(tmp)
 
 
@@ -239,14 +239,14 @@ class TestUpdateProfileYaml(unittest.TestCase):
 class TestUpdateClaudeSettings(unittest.TestCase):
     def setUp(self):
         # Never let the tests touch the real `claude` CLI / ~/.claude.json.
-        self._mode = os.environ.get("HODY_MCP_MODE")
-        os.environ["HODY_MCP_MODE"] = "file"
+        self._mode = os.environ.get("COREGY_MCP_MODE")
+        os.environ["COREGY_MCP_MODE"] = "file"
 
     def tearDown(self):
         if self._mode is None:
-            os.environ.pop("HODY_MCP_MODE", None)
+            os.environ.pop("COREGY_MCP_MODE", None)
         else:
-            os.environ["HODY_MCP_MODE"] = self._mode
+            os.environ["COREGY_MCP_MODE"] = self._mode
 
     def _mcp(self, tmp):
         with open(os.path.join(tmp, ".mcp.json")) as f:
@@ -279,12 +279,12 @@ class TestUpdateClaudeSettings(unittest.TestCase):
             settings_dir = os.path.join(tmp, ".claude")
             os.makedirs(settings_dir)
             with open(os.path.join(settings_dir, "settings.json"), "w") as f:
-                json.dump({"enabledPlugins": ["hody-workflow"],
+                json.dump({"enabledPlugins": ["coregy-workflow"],
                            "mcpServers": {"graphify": {"command": "old"}}}, f)
             update_claude_settings(tmp, "/usr/bin/python3.11")
             with open(os.path.join(settings_dir, "settings.json")) as f:
                 data = json.load(f)
-            self.assertEqual(data["enabledPlugins"], ["hody-workflow"])
+            self.assertEqual(data["enabledPlugins"], ["coregy-workflow"])
             self.assertNotIn("mcpServers", data)
             self.assertEqual(self._mcp(tmp)["mcpServers"]["graphify"]["command"],
                              "/usr/bin/python3.11")

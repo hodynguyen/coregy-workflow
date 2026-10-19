@@ -1,6 +1,6 @@
-# Hody Workflow - Architecture
+# Coregy Workflow - Architecture
 
-> Technical architecture for the Hody Workflow plugin. For vision and goals, see [PROPOSAL.md](./PROPOSAL.md).
+> Technical architecture for the Coregy Workflow plugin. For vision and goals, see [PROPOSAL.md](./PROPOSAL.md).
 
 ---
 
@@ -17,19 +17,19 @@
 
 ```
 ┌─────────────────────────────────────────────────────────────────┐
-│                     HODY WORKFLOW PLUGIN                        │
+│                     COREGY WORKFLOW PLUGIN                        │
 ├─────────────────────────────────────────────────────────────────┤
 │                                                                 │
 │  LAYER 1: PROJECT PROFILE (foundation)                          │
 │  ┌────────────────────────────────────────────────────────────┐ │
-│  │ .hody/profile.yaml                                         │ │
+│  │ .coregy/profile.yaml                                         │ │
 │  │ Auto-detect: language, framework, testing, CI/CD, infra    │ │
-│  │ Runs once via /hody-workflow:init, shared across all agents│ │
+│  │ Runs once via /coregy-workflow:init, shared across all agents│ │
 │  └────────────────────────────────────────────────────────────┘ │
 │                             ↓ feeds into                        │
 │  LAYER 2: KNOWLEDGE BASE (accumulative, structured)              │
 │  ┌────────────────────────────────────────────────────────────┐ │
-│  │ .hody/knowledge/                                           │ │
+│  │ .coregy/knowledge/                                           │ │
 │  │ ├── architecture.md     (system design, diagrams)          │ │
 │  │ ├── decisions.md        (ADRs - why we chose X over Y)     │ │
 │  │ ├── api-contracts.md    (API specs between FE/BE)          │ │
@@ -52,12 +52,12 @@
 ├─────────────────────────────────────────────────────────────────┤
 │  SUPPORTING COMPONENTS                                          │
 │  ├── Skills: project-profile (auto-detect), knowledge-base      │
-│  ├── State: .hody/state.json (workflow state machine)           │
+│  ├── State: .coregy/state.json (workflow state machine)           │
 │  ├── Hooks: inject_project_context (SessionStart + auto-refresh)│
 │  │          ,quality_gate (PreCommit)                           │
-│  ├── Tracker: .hody/tracker.db (SQLite interaction tracker)      │
-│  ├── Rules: .hody/rules.yaml (user-authored project rules)      │
-│  ├── Commands: /hody-workflow:init, start-feature, status,      │
+│  ├── Tracker: .coregy/tracker.db (SQLite interaction tracker)      │
+│  ├── Rules: .coregy/rules.yaml (user-authored project rules)      │
+│  ├── Commands: /coregy-workflow:init, start-feature, status,      │
 │  │             refresh, kb-search, connect, ci-report, sync,    │
 │  │             update-kb, resume, health, track, history, rules  │
 │  └── Output Styles: review-report, test-report, design-doc,     │
@@ -77,17 +77,17 @@ Claude Code receives request → determines task type
 Loads appropriate agent (from agents/*.md)
      ↓
 Agent reads:
-  1. .hody/profile.yaml (current stack)
-  2. .hody/rules.yaml (project rules, if exists)
-  3. .hody/knowledge/* (accumulated context)
-  4. .hody/state.json (workflow state + spec file, if active)
+  1. .coregy/profile.yaml (current stack)
+  2. .coregy/rules.yaml (project rules, if exists)
+  3. .coregy/knowledge/* (accumulated context)
+  4. .coregy/state.json (workflow state + spec file, if active)
   5. Graphify MCP tools (if configured)
      ↓
 Agent performs work, saves checkpoints to tracker.db
      ↓
-Agent writes new knowledge (with frontmatter) to .hody/knowledge/
-Agent updates .hody/state.json (mark self completed, log summary)
-Agent appends to feature work log (.hody/knowledge/log-*.md)
+Agent writes new knowledge (with frontmatter) to .coregy/knowledge/
+Agent updates .coregy/state.json (mark self completed, log summary)
+Agent appends to feature work log (.coregy/knowledge/log-*.md)
      ↓
 Output to user
 ```
@@ -123,10 +123,10 @@ description: When this agent should be activated (for Claude Code matching)
 # Agent: [Role Name]
 
 ## Bootstrap (must run first)
-1. Read `.hody/profile.yaml` → determine tech stack
-2. If `.hody/rules.yaml` exists, read and follow project rules
-3. Read spec file if exists (from `.hody/state.json` → `spec_file`)
-4. Read `.hody/knowledge/[relevant-files]` → understand project context
+1. Read `.coregy/profile.yaml` → determine tech stack
+2. If `.coregy/rules.yaml` exists, read and follow project rules
+3. Read spec file if exists (from `.coregy/state.json` → `spec_file`)
+4. Read `.coregy/knowledge/[relevant-files]` → understand project context
 5. Check Graphify MCP tools if `integrations.graphify: true`
 
 ## Core Expertise
@@ -146,13 +146,13 @@ description: When this agent should be activated (for Claude Code matching)
 
 ## Knowledge Base Update
 - Include YAML frontmatter (tags, created, author_agent, status)
-- After completion, write new knowledge to `.hody/knowledge/[file]`
+- After completion, write new knowledge to `.coregy/knowledge/[file]`
 
 ## MCP Tools
 - Check `integrations:` in profile.yaml for available MCP tools (GitHub, Linear, Jira, Graphify)
 
 ## Workflow State
-- Read/update `.hody/state.json` if active workflow exists
+- Read/update `.coregy/state.json` if active workflow exists
 - Read spec file for confirmed requirements
 - Append to feature work log
 
@@ -204,12 +204,12 @@ description: When this agent should be activated (for Claude Code matching)
 ## 3. Plugin Structure
 
 ```
-hody-workflow/                          # Root = GitHub repo
+coregy-workflow/                          # Root = GitHub repo
 ├── .claude-plugin/
 │   └── marketplace.json                # Marketplace registration
 │
 ├── plugins/
-│   └── hody-workflow/                  # Main plugin
+│   └── coregy-workflow/                  # Main plugin
 │       ├── .claude-plugin/
 │       │   └── plugin.json             # Plugin metadata
 │       │
@@ -283,7 +283,7 @@ hody-workflow/                          # Root = GitHub repo
 │       │   ├── inject_project_context.py     # SessionStart + auto-refresh
 │       │   └── quality_gate.py               # Pre-commit quality gate (v2: configurable)
 │       │
-│       ├── commands/                          # 15 commands
+│       ├── commands/                          # 16 commands
 │       │   ├── init.md
 │       │   ├── start-feature.md
 │       │   ├── status.md
@@ -414,7 +414,7 @@ Modular Python package (20 modules, SRP) that auto-detects tech stack from proje
 # directories.py: Directory structure analysis (src/, lib/, test/ detection)
 ```
 
-**Output:** `.hody/profile.yaml`
+**Output:** `.coregy/profile.yaml`
 
 ```yaml
 project:
@@ -455,7 +455,7 @@ conventions:
 
 ### 4.2. Knowledge Base Templates
 
-Each file in `.hody/knowledge/` has YAML frontmatter for structured indexing, followed by markdown content:
+Each file in `.coregy/knowledge/` has YAML frontmatter for structured indexing, followed by markdown content:
 
 **`architecture.md`**
 ```markdown
@@ -530,15 +530,15 @@ Frontmatter is optional — existing KB files without frontmatter still work (ba
 ### 4.3. Hooks
 
 **`inject_project_context.py`** — Runs at `SessionStart`:
-1. Checks if config files (package.json, go.mod, etc.) are newer than `.hody/profile.yaml` → auto-refreshes if stale
-2. Reads `.hody/profile.yaml` and injects project context into the system message
-3. Reads `.hody/state.json` if present — injects active workflow state (feature name, spec status, next agent)
+1. Checks if config files (package.json, go.mod, etc.) are newer than `.coregy/profile.yaml` → auto-refreshes if stale
+2. Reads `.coregy/profile.yaml` and injects project context into the system message
+3. Reads `.coregy/state.json` if present — injects active workflow state (feature name, spec status, next agent)
 4. Reads Graphify graph stats if `graphify-out/graph.json` exists — injects codebase structure summary
-5. Reads `.hody/rules.yaml` if present — injects project rules summary
+5. Reads `.coregy/rules.yaml` if present — injects project rules summary
 6. Every agent knows the project context, workflow state, graph structure, AND project rules AS SOON AS THE SESSION STARTS
 
 **`quality_gate.py`** (v2) — Runs at `PreCommit`:
-1. Loads configurable rules from `.hody/quality-rules.yaml` (falls back to built-in defaults)
+1. Loads configurable rules from `.coregy/quality-rules.yaml` (falls back to built-in defaults)
 2. Checks: secrets (API keys, tokens, custom patterns), security anti-patterns (eval, innerHTML), debug statements (console.log, breakpoint), file size
 3. Severity levels: `error` blocks commit, `warning` allows but prints issues
 4. Skips binary files, node_modules, vendor, lock files; test files skip security checks
@@ -548,17 +548,17 @@ Frontmatter is optional — existing KB files without frontmatter still work (ba
 
 | Command | Description |
 |---------|-------------|
-| `/hody-workflow:init` | Detect stack, create profile + populate knowledge base |
-| `/hody-workflow:start-feature` | Start feature development workflow — classify task type, suggest agents |
-| `/hody-workflow:status` | View profile + KB summary + next steps |
-| `/hody-workflow:refresh` | Re-detect stack, update profile.yaml |
-| `/hody-workflow:kb-search` | Search across knowledge base files |
-| `/hody-workflow:connect` | Configure MCP integrations (GitHub, Linear, Jira) |
-| `/hody-workflow:ci-report` | Generate CI-compatible test reports |
-| `/hody-workflow:sync` | Sync knowledge base with team |
-| `/hody-workflow:update-kb` | Rescan codebase and refresh knowledge base |
-| `/hody-workflow:resume` | Resume an interrupted workflow from last checkpoint |
-| `/hody-workflow:health` | Project health dashboard with metrics and recommendations |
-| `/hody-workflow:track` | Create, update, list tracked items (tasks, investigations, questions) |
-| `/hody-workflow:history` | View interaction history and session timeline |
-| `/hody-workflow:rules` | View, validate, or initialize project rules (.hody/rules.yaml) |
+| `/coregy-workflow:init` | Detect stack, create profile + populate knowledge base |
+| `/coregy-workflow:start-feature` | Start feature development workflow — classify task type, suggest agents |
+| `/coregy-workflow:status` | View profile + KB summary + next steps |
+| `/coregy-workflow:refresh` | Re-detect stack, update profile.yaml |
+| `/coregy-workflow:kb-search` | Search across knowledge base files |
+| `/coregy-workflow:connect` | Configure MCP integrations (GitHub, Linear, Jira) |
+| `/coregy-workflow:ci-report` | Generate CI-compatible test reports |
+| `/coregy-workflow:sync` | Sync knowledge base with team |
+| `/coregy-workflow:update-kb` | Rescan codebase and refresh knowledge base |
+| `/coregy-workflow:resume` | Resume an interrupted workflow from last checkpoint |
+| `/coregy-workflow:health` | Project health dashboard with metrics and recommendations |
+| `/coregy-workflow:track` | Create, update, list tracked items (tasks, investigations, questions) |
+| `/coregy-workflow:history` | View interaction history and session timeline |
+| `/coregy-workflow:rules` | View, validate, or initialize project rules (.coregy/rules.yaml) |

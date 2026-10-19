@@ -1,6 +1,6 @@
 {
   "enabledPlugins": {
-    "hody-workflow@hody": true
+    "coregy-workflow@coregy": true
   },
   "mcpServers": {
     "graphify": {

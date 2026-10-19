@@ -1,8 +1,8 @@
-# Hody Workflow - User Guide
+# Coregy Workflow - User Guide
 
-> How to install, configure, and use the Hody Workflow plugin for Claude Code.
+> How to install, configure, and use the Coregy Workflow plugin for Claude Code.
 
-**Current status**: v0.13.0 — 9 agents, 15 commands, 4 output styles, 6 agent contracts, Graphify knowledge graph, project rules, interaction tracker, 3 execution modes, auto-track hook, MCP auto-setup for Jira/Linear/GitHub, CLI surface for all workflow scripts, 802 tests.
+**Current status**: v0.14.0 — 9 agents, 16 commands, 4 output styles, 6 agent contracts, Graphify knowledge graph, project rules, interaction tracker, 3 execution modes, auto-track hook, MCP auto-setup for Jira/Linear/GitHub, CLI surface for all workflow scripts, Hody → Coregy migration, 854 tests.
 
 ---
 
@@ -30,11 +30,11 @@
 ## How the Plugin Works
 
 ```
-GitHub repo (hodynguyen/Claude_Workflow)
+GitHub repo (hodynguyen/coregy-workflow)
     ↓  /plugin marketplace add → git clone
-~/.claude/plugins/marketplaces/hody/              ← cloned repo
+~/.claude/plugins/marketplaces/coregy/              ← cloned repo
     ↓  /plugin install → copy files
-~/.claude/plugins/cache/hody/hody-workflow/0.9.x/ ← plugin cache (Claude Code reads from here)
+~/.claude/plugins/cache/coregy/coregy-workflow/0.9.x/ ← plugin cache (Claude Code reads from here)
     ↓  restart Claude Code
 Plugin loaded: hooks, agents, skills, commands
 ```
@@ -57,10 +57,10 @@ Important notes:
 claude
 
 # 2. Add marketplace (only once)
-/plugin marketplace add hodynguyen/Claude_Workflow
+/plugin marketplace add hodynguyen/coregy-workflow
 
 # 3. Install plugin
-/plugin install hody-workflow@hody
+/plugin install coregy-workflow@coregy
 
 # 4. Restart Claude Code
 # Exit (Ctrl+C) then reopen
@@ -91,14 +91,14 @@ claude
 
 # Run 2 commands:
 /plugin marketplace update
-/plugin update hody-workflow@hody
+/plugin update coregy-workflow@coregy
 
 # Restart Claude Code
 ```
 
 Or enable auto-update:
 ```
-/plugin → Marketplaces → hody → Enable auto-update
+/plugin → Marketplaces → coregy → Enable auto-update
 ```
 
 ---
@@ -112,12 +112,12 @@ cd ~/projects/my-app
 claude
 
 # Inside Claude Code:
-/hody-workflow:init
+/coregy-workflow:init
 ```
 
 This will:
-1. Run `detect_stack.py` to scan project files → create `.hody/profile.yaml`
-2. Create `.hody/knowledge/` with 6 files
+1. Run `detect_stack.py` to scan project files → create `.coregy/profile.yaml`
+2. Create `.coregy/knowledge/` with 6 files
 3. **Populate knowledge base** — scan codebase and fill with real content:
    - `architecture.md` — directory structure, components, data flow, tech stack rationale
    - `api-contracts.md` — auto-detected API routes from code
@@ -125,8 +125,8 @@ This will:
    - `runbook.md` — dev commands from package.json, Makefile, docker-compose
    - `business-rules.md` + `tech-debt.md` — templates (fill manually)
 4. Build KB index (`_index.json`)
-5. Initialize tracker database (`.hody/tracker.db`)
-6. Create project rules template (`.hody/rules.yaml`)
+5. Initialize tracker database (`.coregy/tracker.db`)
+6. Create project rules template (`.coregy/rules.yaml`)
 7. Optionally build Graphify knowledge graph (`/init --graph`)
 8. Display summary
 
@@ -134,7 +134,7 @@ This will:
 
 ```
 my-app/
-└── .hody/
+└── .coregy/
     ├── profile.yaml              ← Tech stack (auto-generated)
     ├── state.json                ← Workflow state (created by /start-feature)
     ├── tracker.db                ← Interaction tracker (local-only, gitignored)
@@ -154,7 +154,7 @@ my-app/
         └── archive/              ← Auto-archived old sections (when files > 500 lines)
 ```
 
-> **Tip:** Commit `.hody/` to git — it's team knowledge, not temp files.
+> **Tip:** Commit `.coregy/` to git — it's team knowledge, not temp files.
 
 ---
 
@@ -162,26 +162,26 @@ my-app/
 
 | Command | Description |
 |---------|-------------|
-| `/hody-workflow:init` | Detect stack, create profile + populate knowledge base |
-| `/hody-workflow:start-feature` | Start guided feature development workflow |
-| `/hody-workflow:status` | View profile + KB summary + workflow progress |
-| `/hody-workflow:resume` | Resume an interrupted workflow from last checkpoint |
-| `/hody-workflow:refresh` | Re-detect stack, update profile.yaml |
-| `/hody-workflow:kb-search` | Search across knowledge base files (keyword, tag, agent) |
-| `/hody-workflow:connect` | Configure MCP integrations (GitHub, Linear, Jira) |
-| `/hody-workflow:ci-report` | Generate CI-compatible test reports |
-| `/hody-workflow:sync` | Sync knowledge base with team |
-| `/hody-workflow:update-kb` | Rescan codebase and refresh knowledge base |
-| `/hody-workflow:health` | Project health dashboard with metrics and recommendations |
-| `/hody-workflow:track` | Create, update, list tracked items (tasks, investigations, questions) |
-| `/hody-workflow:history` | View interaction history and session timeline |
-| `/hody-workflow:rules` | View, validate, or initialize project rules |
+| `/coregy-workflow:init` | Detect stack, create profile + populate knowledge base |
+| `/coregy-workflow:start-feature` | Start guided feature development workflow |
+| `/coregy-workflow:status` | View profile + KB summary + workflow progress |
+| `/coregy-workflow:resume` | Resume an interrupted workflow from last checkpoint |
+| `/coregy-workflow:refresh` | Re-detect stack, update profile.yaml |
+| `/coregy-workflow:kb-search` | Search across knowledge base files (keyword, tag, agent) |
+| `/coregy-workflow:connect` | Configure MCP integrations (GitHub, Linear, Jira) |
+| `/coregy-workflow:ci-report` | Generate CI-compatible test reports |
+| `/coregy-workflow:sync` | Sync knowledge base with team |
+| `/coregy-workflow:update-kb` | Rescan codebase and refresh knowledge base |
+| `/coregy-workflow:health` | Project health dashboard with metrics and recommendations |
+| `/coregy-workflow:track` | Create, update, list tracked items (tasks, investigations, questions) |
+| `/coregy-workflow:history` | View interaction history and session timeline |
+| `/coregy-workflow:rules` | View, validate, or initialize project rules |
 
 All commands support `$ARGUMENTS` — pass parameters inline (e.g., `/status verbose`, `/kb-search tag:auth`, `/rules init`).
 
-### `/hody-workflow:start-feature`
+### `/coregy-workflow:start-feature`
 
-Describe your feature → plugin classifies it (new-feature, bug-fix, refactor, etc.) → recommends agent workflow → creates `.hody/state.json` to track progress.
+Describe your feature → plugin classifies it (new-feature, bug-fix, refactor, etc.) → recommends agent workflow → creates `.coregy/state.json` to track progress.
 
 **Three execution modes:**
 
@@ -198,40 +198,40 @@ VERIFY: unit-tester → integration-tester → code-reviewer → spec-verifier
 SHIP:   devops
 ```
 
-Workflow state (including execution mode) persists across sessions. Use `/hody-workflow:resume` to continue.
+Workflow state (including execution mode) persists across sessions. Use `/coregy-workflow:resume` to continue.
 
-### `/hody-workflow:status`
+### `/coregy-workflow:status`
 
 Shows: stack summary, KB overview (filled vs empty sections), active workflow progress, execution mode, suggested next steps.
 
-### `/hody-workflow:resume`
+### `/coregy-workflow:resume`
 
 Resume an interrupted workflow. Respects the persisted execution mode. Override with `auto`, `manual`, or `guided` argument. Shows completed agents with summaries, identifies the next agent.
 
-### `/hody-workflow:refresh`
+### `/coregy-workflow:refresh`
 
 Re-detect stack when you add/remove dependencies, change framework, or restructure your project.
 
 Add `--deep` to run full dependency analysis (dependency counts, outdated packages, security vulnerabilities). Requires the relevant package manager CLI (npm, pip, go, cargo).
 
-### `/hody-workflow:kb-search`
+### `/coregy-workflow:kb-search`
 
-Search across `.hody/knowledge/` files. Supports:
+Search across `.coregy/knowledge/` files. Supports:
 - **Keyword search**: find any word/phrase across all KB files
 - **Tag search**: `tag:auth` — find files tagged with a topic
 - **Agent search**: `agent:architect` — find entries by author agent
 - **Status filter**: `status:active` or `status:superseded`
 
-### `/hody-workflow:connect`
+### `/coregy-workflow:connect`
 
 Configure MCP servers (GitHub, Linear, Jira). After connecting, agents can read/create PRs, issues, and comments.
 
 **Auto-setup mode (v0.12.0+):** pass all required fields and the command writes `.claude/settings.json` + flips `integrations.<name>: true` in `profile.yaml` without asking. Restart Claude Code to activate.
 
 ```
-/hody-workflow:connect jira --api-token=<token> --site=https://acme.atlassian.net --email=me@acme.com
-/hody-workflow:connect linear --api-key=<key>
-/hody-workflow:connect github --token=<pat>
+/coregy-workflow:connect jira --api-token=<token> --site=https://acme.atlassian.net --email=me@acme.com
+/coregy-workflow:connect linear --api-key=<key>
+/coregy-workflow:connect github --token=<pat>
 ```
 
 **Interactive mode:** if any required field is missing, the command lists exactly what's needed and where to get each value, then prompts you. No copy-paste of JSON.
@@ -246,25 +246,25 @@ Configure MCP servers (GitHub, Linear, Jira). After connecting, agents can read/
 **Other actions:**
 
 ```
-/hody-workflow:connect status        # show what's configured
-/hody-workflow:connect disable jira  # remove MCP server entry + flip flag
+/coregy-workflow:connect status        # show what's configured
+/coregy-workflow:connect disable jira  # remove MCP server entry + flip flag
 ```
 
 Existing MCP servers in `.claude/settings.json` are preserved; only the target integration's entry is added/replaced/removed.
 
-### `/hody-workflow:ci-report`
+### `/coregy-workflow:ci-report`
 
 Generate CI-compatible test reports (GitHub Actions annotations, JUnit XML, Markdown summary).
 
-### `/hody-workflow:sync`
+### `/coregy-workflow:sync`
 
-Push/pull `.hody/knowledge/` to a shared location (git branch, Gist, shared repo) for team collaboration.
+Push/pull `.coregy/knowledge/` to a shared location (git branch, Gist, shared repo) for team collaboration.
 
-### `/hody-workflow:update-kb`
+### `/coregy-workflow:update-kb`
 
-Rescan the codebase and update `.hody/knowledge/` files with the latest architecture, API routes, and runbook commands.
+Rescan the codebase and update `.coregy/knowledge/` files with the latest architecture, API routes, and runbook commands.
 
-### `/hody-workflow:track`
+### `/coregy-workflow:track`
 
 Create, update, and list tracked items. Types: task, investigation, question. Priorities: high, medium, low.
 
@@ -274,13 +274,13 @@ Create, update, and list tracked items. Types: task, investigation, question. Pr
 /track list --status active
 ```
 
-### `/hody-workflow:history`
+### `/coregy-workflow:history`
 
 View interaction history. Shows tracked items, sessions, and activity timeline.
 
-### `/hody-workflow:rules`
+### `/coregy-workflow:rules`
 
-Manage project rules (`.hody/rules.yaml`):
+Manage project rules (`.coregy/rules.yaml`):
 
 ```
 /rules show       — display current rules with summary
@@ -289,7 +289,7 @@ Manage project rules (`.hody/rules.yaml`):
 /rules add coding:forbidden "Use camelCase for all variables"
 ```
 
-### `/hody-workflow:health`
+### `/coregy-workflow:health`
 
 Show a comprehensive project health dashboard aggregating:
 - **Knowledge Base**: completeness percentage (populated vs template files)
@@ -303,7 +303,7 @@ Show a comprehensive project health dashboard aggregating:
 
 ## Project Rules
 
-Define project-specific rules that all 9 agents follow. Create `.hody/rules.yaml`:
+Define project-specific rules that all 9 agents follow. Create `.coregy/rules.yaml`:
 
 ```yaml
 version: "1"
@@ -345,7 +345,7 @@ Run `/rules init` to create a template, then uncomment and customize rules for y
 
 ## Interaction Tracker
 
-The tracker system (`.hody/tracker.db`) provides:
+The tracker system (`.coregy/tracker.db`) provides:
 
 - **Item tracking**: Track tasks, investigations, and questions with priority and status
 - **Agent checkpoints**: Agents save progress mid-work so context limit interruptions don't lose progress
@@ -394,10 +394,10 @@ The tracker database is local-only and should be gitignored. It's automatically 
 - `investigation` → prompt mentions `investigate`, `explore`, `research`, `tìm hiểu`, ...
 - `feature` → default
 
-**Disable globally** with `HODY_AUTO_TRACK=0`:
+**Disable globally** with `COREGY_AUTO_TRACK=0`:
 
 ```bash
-export HODY_AUTO_TRACK=0    # silence the hint for the current shell
+export COREGY_AUTO_TRACK=0    # silence the hint for the current shell
 ```
 
 ---
@@ -443,7 +443,7 @@ Graphify:
 
 ## Configurable Quality Gate
 
-The quality gate now supports configurable rules via `.hody/quality-rules.yaml`:
+The quality gate now supports configurable rules via `.coregy/quality-rules.yaml`:
 
 ```yaml
 version: "1"
@@ -479,7 +479,7 @@ rules:
 
 ## Team Roles & Permissions
 
-Define team roles in `.hody/team.yaml`:
+Define team roles in `.coregy/team.yaml`:
 
 ```yaml
 roles:
@@ -592,23 +592,23 @@ When agents hand off work to each other, contracts in `agents/contracts/` define
 ## Complete Feature Workflow
 
 ```
-1. /hody-workflow:init                    ← Run once (detect + populate KB + tracker + rules template)
-2. /hody-workflow:init --graph            ← Build Graphify knowledge graph (optional)
-3. /hody-workflow:rules init              ← Customize project rules (optional)
-4. /hody-workflow:connect                 ← Connect GitHub/Linear/Jira (optional, once)
-5. /hody-workflow:start-feature           ← Guided workflow → creates state.json
+1. /coregy-workflow:init                    ← Run once (detect + populate KB + tracker + rules template)
+2. /coregy-workflow:init --graph            ← Build Graphify knowledge graph (optional)
+3. /coregy-workflow:rules init              ← Customize project rules (optional)
+4. /coregy-workflow:connect                 ← Connect GitHub/Linear/Jira (optional, once)
+5. /coregy-workflow:start-feature           ← Guided workflow → creates state.json
 6. THINK: researcher → architect          ← Discovery: research + spec (state tracked, checkpointed)
 7. User confirms spec                     ← Spec-driven: review and confirm before BUILD
 8. BUILD: frontend + backend              ← Auto-execute against confirmed spec
 9. --- close terminal, come back later ---
-10. /hody-workflow:resume                 ← Resume from last checkpoint (agent progress preserved)
+10. /coregy-workflow:resume                 ← Resume from last checkpoint (agent progress preserved)
 11. VERIFY: testers + reviewers           ← Test + review (state tracked)
 12. git commit → quality_gate.py          ← Configurable quality check before commit
 13. SHIP: devops                          ← Deploy (optional)
-14. /hody-workflow:ci-report              ← Generate test report for CI (optional)
-15. /hody-workflow:health                 ← Check project health (optional)
+14. /coregy-workflow:ci-report              ← Generate test report for CI (optional)
+15. /coregy-workflow:health                 ← Check project health (optional)
 16. Knowledge base accumulates            ← Context for future sessions
-17. /hody-workflow:sync                   ← Share KB with team (optional)
+17. /coregy-workflow:sync                   ← Share KB with team (optional)
 ```
 
 ---
@@ -616,12 +616,12 @@ When agents hand off work to each other, contracts in `agents/contracts/` define
 ## SessionStart Hook (automatic)
 
 Every time you open a new Claude Code session in a project that has been initialized:
-- Hook reads `.hody/profile.yaml`
+- Hook reads `.coregy/profile.yaml`
 - **Auto-refresh**: if config files (package.json, go.mod, etc.) are newer than profile.yaml → automatically re-detects
 - Injects project context into the system message
-- If `.hody/state.json` exists with an active workflow → injects workflow state (feature name, spec status, next agent)
+- If `.coregy/state.json` exists with an active workflow → injects workflow state (feature name, spec status, next agent)
 - If `graphify-out/graph.json` exists → injects graph stats (node/edge counts)
-- If `.hody/rules.yaml` exists → injects rules summary
+- If `.coregy/rules.yaml` exists → injects rules summary
 - All agents automatically know the tech stack, workflow state, graph structure, AND project rules — no need to remind them
 
 ---
@@ -636,7 +636,7 @@ The `quality_gate.py` hook runs before every commit with configurable rules:
 - **Severity levels**: `error` blocks commit, `warning` allows but reports
 - Skips binary files, node_modules, vendor, lock files
 - Test files are exempt from security checks
-- Configure via `.hody/quality-rules.yaml` (see Configurable Quality Gate section above)
+- Configure via `.coregy/quality-rules.yaml` (see Configurable Quality Gate section above)
 
 ---
 
@@ -644,14 +644,14 @@ The `quality_gate.py` hook runs before every commit with configurable rules:
 
 ### Requirements
 
-- Public GitHub repo so users can clone: `hodynguyen/Claude_Workflow`
+- Public GitHub repo so users can clone: `hodynguyen/coregy-workflow`
 - Repo contains `.claude-plugin/marketplace.json` at root (already set up)
-- Plugin lives in `plugins/hody-workflow/` with `.claude-plugin/plugin.json` (already set up)
+- Plugin lives in `plugins/coregy-workflow/` with `.claude-plugin/plugin.json` (already set up)
 
 ### Release workflow
 
 1. **Code & test** locally
-2. **Bump version** in `plugins/hody-workflow/.claude-plugin/plugin.json`
+2. **Bump version** in `plugins/coregy-workflow/.claude-plugin/plugin.json`
 3. **Commit & push** to GitHub
 4. Done — users update with `/plugin marketplace update` + `/plugin update`
 
@@ -669,6 +669,6 @@ The `quality_gate.py` hook runs before every commit with configurable rules:
 | Issue | Solution |
 |-------|----------|
 | Plugin doesn't load after install | Restart Claude Code (exit + reopen) |
-| Plugin is outdated after push | Run `/plugin marketplace update` then `/plugin update hody-workflow@hody` |
-| `/hody-workflow:init` not found | Check if plugin is installed: `/plugin list` |
-| Cache is broken | Delete cache: `rm -rf ~/.claude/plugins/cache/hody/hody-workflow/` then reinstall |
+| Plugin is outdated after push | Run `/plugin marketplace update` then `/plugin update coregy-workflow@coregy` |
+| `/coregy-workflow:init` not found | Check if plugin is installed: `/plugin list` |
+| Cache is broken | Delete cache: `rm -rf ~/.claude/plugins/cache/coregy/coregy-workflow/` then reinstall |

@@ -1,4 +1,4 @@
-# Hody Workflow - Development Roadmap
+# Coregy Workflow - Development Roadmap
 
 > Single source of truth for all phase tracking and future plans.
 
@@ -42,11 +42,11 @@
 | 7 | `detect_stack.py` | Done | 24/01 | Auto-detect top 5 popular stacks (Node.js, Go, Python + DevOps/conventions) |
 | 8 | Knowledge base templates (6 files) | Done | 25/01 | architecture, decisions, api-contracts, business-rules, tech-debt, runbook |
 | 9 | `SKILL.md` for project-profile | Done | 27/01 | Usage docs, detection sources, sample output |
-| 10 | `/hody-workflow:init` command | Done | 29/01 | Detect stack + create KB + show summary |
+| 10 | `/coregy-workflow:init` command | Done | 29/01 | Detect stack + create KB + show summary |
 | 11 | 3 MVP agents | Done | 31/01 | **architect**, **code-reviewer**, **unit-tester** |
 | 12 | Unit tests | Done | 02/02 | 20 tests, found & fixed backend-only detection bug |
 
-**Deliverable**: User can `/hody-workflow:init` → call 3 agents → agents are aware of project stack
+**Deliverable**: User can `/coregy-workflow:init` → call 3 agents → agents are aware of project stack
 
 ---
 
@@ -59,8 +59,8 @@
 | 1 | THINK + BUILD agents | Done | 09/02 | 3 new agents: researcher, frontend, backend |
 | 2 | VERIFY + SHIP agents | Done | 09/02 | 3 new agents: spec-verifier, integration-tester, devops — all 9 agents complete |
 | 3 | Output styles | Done | 09/02 | 3 templates: review-report, test-report, design-doc |
-| 4 | `/hody-workflow:start-feature` command | Done | 09/02 | 8 feature types, agent workflow mapping |
-| 5 | `/hody-workflow:status` command | Done | 09/02 | Profile + KB overview + suggestions |
+| 4 | `/coregy-workflow:start-feature` command | Done | 09/02 | 8 feature types, agent workflow mapping |
+| 5 | `/coregy-workflow:status` command | Done | 09/02 | Profile + KB overview + suggestions |
 | 6 | Extended stack detection | Done | 09/02 | Rust, Java/Kotlin, Angular, Svelte — 31 tests (up from 20) |
 | 7 | Update README + bump version | Done | 09/02 | v0.2.0 |
 
@@ -79,8 +79,8 @@
 | 3 | PHP stack detection | Done | 10/02 | Detect `composer.json`; frameworks: Laravel, Symfony, Magento; test: PHPUnit, Pest |
 | 4 | Monorepo detection | Done | 11/02 | Detect `nx.json`, `turbo.json`, `lerna.json`, `pnpm-workspace.yaml`; identify workspace root vs sub-projects |
 | 5 | Monorepo profile format | Done | 11/02 | Extend `profile.yaml` with `workspaces[]` — each sub-project has its own language, framework, testing |
-| 6 | Auto-update profile | Done | 11/02 | `/hody-workflow:refresh` command to re-run `detect_stack.py` |
-| 7 | Knowledge base search | Done | 12/02 | `/hody-workflow:kb-search` — supports keyword search and section filtering |
+| 6 | Auto-update profile | Done | 11/02 | `/coregy-workflow:refresh` command to re-run `detect_stack.py` |
+| 7 | Knowledge base search | Done | 12/02 | `/coregy-workflow:kb-search` — supports keyword search and section filtering |
 | 8 | Agent collaboration | Done | 12/02 | `## Collaboration` section in all 9 agent prompts — delegation pattern |
 | 9 | Unit tests for new stacks | Done | 13/02 | Tests for C#, Ruby, PHP detection + monorepo — 47 tests (up from 31) |
 | 10 | Docs update | Done | 13/02 | Updated README, USAGE_GUIDE with Phase 3 features |
@@ -113,11 +113,11 @@
 |---|------|--------|------|-------------|
 | 1 | Auto-profile refresh hook | Done | 14/02 | Enhanced SessionStart hook to check config file modification times vs `profile.yaml`. Auto-re-runs detection if stale. |
 | 2 | Pre-commit quality gate | Done | 14/02 | Hook script `quality_gate.py` (PreCommit). Checks security patterns, file size on staged files. Outputs pass/fail. |
-| 3 | CI test report generation | Done | 14/02 | Output style `ci-report.md` + `/hody-workflow:ci-report` command. JUnit XML / GitHub Actions / Markdown. |
-| 4 | MCP GitHub integration | Done | 14/02 | `/hody-workflow:connect` command. Agents can read issues/PRs, create PRs, post comments. |
+| 3 | CI test report generation | Done | 14/02 | Output style `ci-report.md` + `/coregy-workflow:ci-report` command. JUnit XML / GitHub Actions / Markdown. |
+| 4 | MCP GitHub integration | Done | 14/02 | `/coregy-workflow:connect` command. Agents can read issues/PRs, create PRs, post comments. |
 | 5 | Preserve integrations | Done | 14/02 | `load_existing_integrations()` preserves user-configured integrations across profile re-detection. |
 | 6 | Agent MCP tool access | Done | 14/02 | `## MCP Tools` section added to 5 agent prompts (researcher, architect, code-reviewer, devops, integration-tester). |
-| 7 | Team KB sync | Done | 14/02 | `/hody-workflow:sync` command + `kb_sync.py` script. Push/pull `.hody/knowledge/` to shared location. |
+| 7 | Team KB sync | Done | 14/02 | `/coregy-workflow:sync` command + `kb_sync.py` script. Push/pull `.coregy/knowledge/` to shared location. |
 | 8 | Unit tests for Phase 4 | Done | 14/02 | 85 tests (up from 47) covering quality gate, KB sync, auto-refresh, integrations. |
 | 9 | Refactor detect_stack.py (SRP) | Done | 15/02 | Modularized from 820-line monolith into 16 SRP modules under `detectors/` package. |
 | 10 | MCP issue tracker integration | Done | 15/02 | Enhanced 5 agent prompts with Linear/Jira workflows — search, read, create, transition issues. Updated `/connect` verification. |
@@ -125,7 +125,7 @@
 
 **Technical details**:
 
-- **Auto-profile refresh**: `inject_project_context.py` compares modification times of key config files against `.hody/profile.yaml`. If any config file is newer, auto-runs `detect_stack.py` before injecting context.
+- **Auto-profile refresh**: `inject_project_context.py` compares modification times of key config files against `.coregy/profile.yaml`. If any config file is newer, auto-runs `detect_stack.py` before injecting context.
 - **Pre-commit quality gate**: `quality_gate.py` checks security patterns (AWS keys, private keys, hardcoded passwords, API keys, eval/innerHTML usage). Skips binary files, node_modules, vendor, dist, lock files. Test files skip security checks.
 - **Refactored detect_stack.py**: Modularized from 820-line monolith into 16 SRP modules under `detectors/` package. `detect_stack.py` remains as backward-compatible thin CLI wrapper.
 
@@ -155,7 +155,7 @@ Five structural limitations prevent the plugin from scaling beyond individual-de
 
 | # | Feature | Status | Description |
 |---|---------|--------|-------------|
-| 1 | Workflow State Machine | Done | `.hody/state.json` with phases, active agent, timestamps, audit log. New `state.py` module. `/hody-workflow:resume` command. |
+| 1 | Workflow State Machine | Done | `.coregy/state.json` with phases, active agent, timestamps, audit log. New `state.py` module. `/coregy-workflow:resume` command. |
 | 2 | Structured Knowledge Base | Done | YAML frontmatter (tags, date, author-agent) on KB entries. `_index.json` for section-level indexing. Auto-archival for large KB files. |
 | 3 | Deep Stack Analysis | Done | Parse actual dependency trees (`npm ls --json`, `pip list`, `go list`, `cargo metadata`). Version conflict detection, security audit. Opt-in via `--deep` flag. |
 | 4 | Agent Input/Output Contracts | Done | Typed handoff schemas in `agents/contracts/*.yaml`. Validation at agent bootstrap. Advisory by default. 6 contracts defined. |
@@ -164,9 +164,9 @@ Five structural limitations prevent the plugin from scaling beyond individual-de
 
 **Problem solved**: No progress tracking, no session persistence.
 
-**Solution**: Introduce `.hody/state.json` that tracks the active workflow, current phase, completed agents, timestamps, and outputs.
+**Solution**: Introduce `.coregy/state.json` that tracks the active workflow, current phase, completed agents, timestamps, and outputs.
 
-**State schema** (`.hody/state.json`):
+**State schema** (`.coregy/state.json`):
 ```json
 {
   "workflow_id": "feat-user-auth-20260215",
@@ -207,7 +207,7 @@ Five structural limitations prevent the plugin from scaling beyond individual-de
 
 | Component | File | Description |
 |-----------|------|-------------|
-| State manager | `skills/project-profile/scripts/state.py` | Create/read/update `.hody/state.json`; validate phase transitions |
+| State manager | `skills/project-profile/scripts/state.py` | Create/read/update `.coregy/state.json`; validate phase transitions |
 | Hook integration | `hooks/inject_project_context.py` | Inject active workflow state alongside profile into agent context |
 | Start-feature update | `commands/start-feature.md` | Create state on workflow start; write initial phases |
 | Status update | `commands/status.md` | Read and display workflow progress (phase, active agent, completion %) |
@@ -217,7 +217,7 @@ Five structural limitations prevent the plugin from scaling beyond individual-de
 - State is a single JSON file (not a database) — keeps the "no dependencies" philosophy
 - State transitions are validated: BUILD cannot start until at least one THINK agent completes
 - Agent log provides audit trail without requiring external services
-- `/hody-workflow:resume` reads state and re-injects context for the next agent
+- `/coregy-workflow:resume` reads state and re-injects context for the next agent
 
 #### Feature 5.2: Structured Knowledge Base
 
@@ -244,16 +244,16 @@ We chose OAuth2 with PKCE flow for the following reasons...
 
 | Component | File | Description |
 |-----------|------|-------------|
-| KB index builder | `skills/project-profile/scripts/kb_index.py` | Parse frontmatter from all KB files; build `.hody/knowledge/_index.json` with tags, dates, sections |
+| KB index builder | `skills/project-profile/scripts/kb_index.py` | Parse frontmatter from all KB files; build `.coregy/knowledge/_index.json` with tags, dates, sections |
 | Enhanced kb-search | `commands/kb-search.md` | Search against `_index.json` first (tag/date/agent filter), then fall back to content search |
-| Auto-archival | `skills/project-profile/scripts/kb_archive.py` | When a KB file exceeds 500 lines, move older sections (by date) to `.hody/knowledge/archive/` |
+| Auto-archival | `skills/project-profile/scripts/kb_archive.py` | When a KB file exceeds 500 lines, move older sections (by date) to `.coregy/knowledge/archive/` |
 | KB write helper | Agent prompt updates | Agents instructed to include frontmatter when writing KB entries |
 | Init update | `commands/init.md` | Generate `_index.json` during init; add frontmatter to templates |
 
 **Key design decisions**:
 - Frontmatter is optional — existing KB files without frontmatter still work (backward compatible)
 - `_index.json` is a generated cache, not source of truth — can be rebuilt from `.md` files
-- Archive threshold is configurable via `.hody/config.yaml` (future)
+- Archive threshold is configurable via `.coregy/config.yaml` (future)
 - Tags enable cross-file discovery: "find all decisions about authentication" across `decisions.md`, `architecture.md`, etc.
 
 #### Feature 5.3: Deep Stack Analysis
@@ -350,14 +350,14 @@ validation:
 
 | # | Feature | Status | Description |
 |---|---------|--------|-------------|
-| 1 | Quality Gate v2 | Done | Configurable rules in `.hody/quality-rules.yaml`. Coverage thresholds, dependency audit, severity levels (error/warning). `quality_rules.py` module. |
+| 1 | Quality Gate v2 | Done | Configurable rules in `.coregy/quality-rules.yaml`. Coverage thresholds, dependency audit, severity levels (error/warning). `quality_rules.py` module. |
 | 2 | CI Feedback Loop | Done | Poll CI status via `gh` CLI, parse test failures (pytest/jest/go), auto-create tech-debt entries, suggest fixes. `ci_monitor.py` module. |
-| 3 | Team Roles & Permissions | Done | Role definitions in `.hody/team.yaml` (lead, developer, reviewer, junior). Agent access control per role. `team.py` module. |
-| 4 | Project Health Dashboard | Done | `/hody-workflow:health` command. Aggregate KB completeness, tech-debt count, workflow stats, agent usage, recommendations. `health.py` module. |
+| 3 | Team Roles & Permissions | Done | Role definitions in `.coregy/team.yaml` (lead, developer, reviewer, junior). Agent access control per role. `team.py` module. |
+| 4 | Project Health Dashboard | Done | `/coregy-workflow:health` command. Aggregate KB completeness, tech-debt count, workflow stats, agent usage, recommendations. `health.py` module. |
 
 #### Feature 6.1: Quality Gate v2 — Configurable Rule Engine
 
-**Solution**: Configurable quality rules in `.hody/quality-rules.yaml` with severity levels, custom patterns, and integration with language-specific linters.
+**Solution**: Configurable quality rules in `.coregy/quality-rules.yaml` with severity levels, custom patterns, and integration with language-specific linters.
 
 ```yaml
 version: 1
@@ -408,7 +408,7 @@ Developer pushes → CI runs → CI monitor polls status → On failure:
 
 #### Feature 6.3: Team Roles & Permissions
 
-**Solution**: Role definitions in `.hody/team.yaml`; agent access control based on roles.
+**Solution**: Role definitions in `.coregy/team.yaml`; agent access control based on roles.
 
 ```yaml
 roles:
@@ -434,7 +434,7 @@ members:
 
 #### Feature 6.4: Project Health Dashboard
 
-**Solution**: `/hody-workflow:health` command aggregating metrics from KB, state, profile, and git history.
+**Solution**: `/coregy-workflow:health` command aggregating metrics from KB, state, profile, and git history.
 
 ```
 Project Health — my-app
@@ -452,7 +452,7 @@ Workflows:       5 started, 4 completed (80% completion rate)
 Recommendations:
   → Address high-priority tech debt item: "Migrate from express 4 to 5"
   → Try spec-verifier agent to validate implementation against requirements
-  → Consider running deep stack analysis: /hody-workflow:refresh --deep
+  → Consider running deep stack analysis: /coregy-workflow:refresh --deep
 ```
 
 **Deliverable**: Production-ready plugin with configurable quality gates, CI feedback loops, team role management, and project health visibility
@@ -484,13 +484,13 @@ Recommendations:
 
 | # | Feature | Version | Description |
 |---|---------|---------|-------------|
-| 1 | SQLite tracker | v0.6.0 | `tracker.py` + `.hody/tracker.db` — tracks tasks, investigations, questions with priority, status, timestamps |
+| 1 | SQLite tracker | v0.6.0 | `tracker.py` + `.coregy/tracker.db` — tracks tasks, investigations, questions with priority, status, timestamps |
 | 2 | Agent checkpoints | v0.6.0 | Save/restore agent progress mid-work. When context limit hits, `/resume` restores from last checkpoint |
 | 3 | `/track` command | v0.6.1 | Create, update, list tracked items directly from CLI |
 | 4 | `/history` command | v0.6.1 | View interaction history and session timeline |
 | 5 | `$ARGUMENTS` support | v0.6.3 | All 14 commands accept inline arguments (e.g., `/status verbose`, `/kb-search tag:auth`) |
 | 6 | `--cwd` support | v0.6.4 | All tracker.py subcommands support `--cwd` for correct project root |
-| 7 | Per-feature work logs | v0.7.1 | Each feature workflow gets a dedicated log file in `.hody/knowledge/` tracking what each agent did |
+| 7 | Per-feature work logs | v0.7.1 | Each feature workflow gets a dedicated log file in `.coregy/knowledge/` tracking what each agent did |
 
 **Key files**: `tracker.py`, `tracker_schema.py`, `tracker_awareness.py`, `commands/track.md`, `commands/history.md`
 
@@ -499,11 +499,11 @@ Recommendations:
 **Goal**: Transform the workflow from blind execution to spec-first development.
 
 **Paradigm**: Discovery → Confirm → Auto-execute
-1. THINK agents (researcher, architect) produce a **spec file** (`.hody/knowledge/spec-*.md`)
+1. THINK agents (researcher, architect) produce a **spec file** (`.coregy/knowledge/spec-*.md`)
 2. User reviews and **confirms** the spec
 3. Remaining agents (BUILD, VERIFY, SHIP) auto-execute against the confirmed spec
 
-**State additions**: `spec_confirmed` (bool), `spec_file` (string) in `.hody/state.json`. Agents check `spec_confirmed` before proceeding.
+**State additions**: `spec_confirmed` (bool), `spec_file` (string) in `.coregy/state.json`. Agents check `spec_confirmed` before proceeding.
 
 ### Graphify Integration (v0.8.0–v0.8.3) — Complete
 
@@ -525,7 +525,7 @@ Recommendations:
 
 **Goal**: User-authored project rules that all 9 agents respect.
 
-**Schema** (`.hody/rules.yaml`):
+**Schema** (`.coregy/rules.yaml`):
 ```yaml
 version: "1"
 coding:
@@ -570,7 +570,7 @@ custom:
 - **Confidence**: word count → low (< 4) / medium (< 12) / high (≥ 12). Hook ignores `low`.
 
 **Hook flow** (`auto_track_hook.py`, `UserPromptSubmit`):
-1. Skip if `HODY_AUTO_TRACK=0`, no `.hody/`, or active workflow in `state.json`
+1. Skip if `COREGY_AUTO_TRACK=0`, no `.coregy/`, or active workflow in `state.json`
 2. Run `detect_intent(prompt)`
 3. If detected with confidence ≥ medium, output `hookSpecificOutput.additionalContext` with a brief instruction telling Claude to ask the user before tracking
 
@@ -604,3 +604,20 @@ custom:
 **Why not auto-fetch tokens**: Tokens are user-specific secrets. The script writes them to `.claude/settings.json` directly — same convention as Graphify's automated setup. For shared/committed configs, users can swap the value for `${ENV_VAR}` interpolation manually.
 
 **Key files**: `skills/project-profile/scripts/mcp_setup.py` (CLI + library), `commands/connect.md` (auto-vs-interactive flow), `test/test_mcp_setup.py` (29 tests).
+
+### Rename Hody → Coregy (v0.14.0) — Complete
+
+**Goal**: Rebrand the plugin from Hody to Coregy everywhere (plugin, marketplace, data dir, env vars, repo) without breaking projects that already use it.
+
+| Change | Before | After |
+|--------|--------|-------|
+| Plugin / marketplace | `hody-workflow@hody` | `coregy-workflow@coregy` |
+| Commands | `/hody-workflow:*` | `/coregy-workflow:*` |
+| Project data dir | `.hody/` | `.coregy/` |
+| Env vars | `HODY_*` | `COREGY_*` (legacy names still read as fallback) |
+| KB sync branch default | `hody-knowledge` | `coregy-knowledge` |
+| GitHub repo | `hodynguyen/Claude_Workflow` | `hodynguyen/coregy-workflow` |
+
+**Migration** (`migrate.py`, `/coregy-workflow:migrate`): renames `.hody/` → `.coregy/` (tracker.db untouched), rewrites path tokens inside it, `.gitignore` entries and the `enabledPlugins` key in `.claude/settings*.json`. Refuses when both dirs exist; never deletes. The SessionStart hook runs it automatically and tells the model so the user is informed once.
+
+**Key files**: `skills/project-profile/scripts/migrate.py`, `commands/migrate.md`, `hooks/inject_project_context.py`, `test/test_migrate.py` (13 tests).

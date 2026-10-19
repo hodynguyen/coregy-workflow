@@ -17,9 +17,9 @@ graphify-out/
 **/graphify-out/
 
 # Local-only interaction tracker DB (ADR-005) -- never shared via git
-.hody/tracker.db
-.hody/tracker.db-wal
-.hody/tracker.db-shm
+.coregy/tracker.db
+.coregy/tracker.db-wal
+.coregy/tracker.db-shm
 
 # Claude Code agent worktrees -- local scratch copies of this repo, never committed
 .claude/worktrees/

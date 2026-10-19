@@ -1,4 +1,4 @@
-# Hody Workflow
+# Coregy Workflow
 
 > A project-aware development workflow plugin for Claude Code with 9 specialized AI agents.
 
@@ -14,12 +14,12 @@
 - **Monorepo support** — detects Nx, Turborepo, Lerna, pnpm workspaces and builds per-workspace profiles
 - **Knowledge base** — 6 persistent markdown files with YAML frontmatter, `_index.json` indexing, and auto-archival
 - **9 specialized agents** across 4 groups: THINK (researcher, architect), BUILD (frontend, backend), VERIFY (code-reviewer, spec-verifier, unit-tester, integration-tester), SHIP (devops)
-- **Workflow state machine** — `.hody/state.json` tracks feature progress across sessions with `/resume`
+- **Workflow state machine** — `.coregy/state.json` tracks feature progress across sessions with `/resume`
 - **Agent contracts** — 6 typed handoff schemas for validated inter-agent communication
-- **Configurable quality gate** — `.hody/quality-rules.yaml` with custom patterns, severity levels, debug detection
+- **Configurable quality gate** — `.coregy/quality-rules.yaml` with custom patterns, severity levels, debug detection
 - **CI feedback loop** — poll CI status, parse test failures, auto-create tech-debt entries
-- **Team roles** — `.hody/team.yaml` with role-based agent access control (lead, developer, reviewer, junior)
-- **Health dashboard** — `/hody-workflow:health` aggregates KB completeness, tech debt, workflow stats, recommendations
+- **Team roles** — `.coregy/team.yaml` with role-based agent access control (lead, developer, reviewer, junior)
+- **Health dashboard** — `/coregy-workflow:health` aggregates KB completeness, tech debt, workflow stats, recommendations
 - **MCP integrations** — connect to GitHub, Linear, and Jira for issue tracking and project management
 - **SessionStart hook** — automatically injects your project's tech stack into every Claude Code session
 
@@ -27,16 +27,21 @@
 
 ## Installation
 
+> **Upgrading from Hody?** The plugin was renamed `hody-workflow` → `coregy-workflow` in v0.14.0. Run
+> `/plugin uninstall hody-workflow@hody` and `/plugin marketplace remove hody`, then follow the steps below.
+> Existing projects are migrated automatically on the next session (`.hody/` → `.coregy/`), or run
+> `/coregy-workflow:migrate`. Legacy `HODY_*` env vars still work.
+
 ### 1. Add marketplace
 
 ```
-/plugin marketplace add hodynguyen/Claude_Workflow
+/plugin marketplace add hodynguyen/coregy-workflow
 ```
 
 ### 2. Install plugin
 
 ```
-/plugin install hody-workflow@hody
+/plugin install coregy-workflow@coregy
 ```
 
 You'll be prompted to choose a scope:
@@ -62,13 +67,13 @@ cd ~/projects/my-app
 claude
 
 # Inside Claude Code:
-/hody-workflow:init
+/coregy-workflow:init
 ```
 
 This will:
 1. Run `detect_stack.py` to scan your project files
-2. Generate `.hody/profile.yaml` with detected stack info
-3. Create `.hody/knowledge/` with 6 files (YAML frontmatter + `_index.json`)
+2. Generate `.coregy/profile.yaml` with detected stack info
+3. Create `.coregy/knowledge/` with 6 files (YAML frontmatter + `_index.json`)
 4. Populate knowledge base with real project data (architecture, API routes, runbook commands, tech stack ADR)
 5. Display a summary of detected technologies and populated knowledge
 
@@ -76,7 +81,7 @@ This will:
 
 ```
 my-app/
-└── .hody/
+└── .coregy/
     ├── profile.yaml              # Tech stack (auto-generated)
     ├── state.json                # Workflow state (created by /start-feature)
     ├── quality-rules.yaml        # Quality gate config (optional)
@@ -92,27 +97,28 @@ my-app/
         └── archive/              # Auto-archived old sections
 ```
 
-> **Tip:** Commit `.hody/` to git — it's team knowledge, not temp files.
+> **Tip:** Commit `.coregy/` to git — it's team knowledge, not temp files.
 
 ### Commands
 
 | Command | Description |
 |---------|-------------|
-| `/hody-workflow:init` | Detect stack, create profile + populate knowledge base |
-| `/hody-workflow:start-feature` | Start guided feature development workflow |
-| `/hody-workflow:status` | View profile + KB summary + workflow progress |
-| `/hody-workflow:resume` | Resume an interrupted workflow from last checkpoint |
-| `/hody-workflow:refresh` | Re-detect stack, update profile.yaml (`--deep` for dependency analysis) |
-| `/hody-workflow:kb-search` | Search knowledge base (keyword, tag, agent, status) |
-| `/hody-workflow:connect` | Configure MCP integrations (GitHub, Linear, Jira) |
-| `/hody-workflow:ci-report` | Generate CI-compatible test reports |
-| `/hody-workflow:sync` | Sync knowledge base with team |
-| `/hody-workflow:update-kb` | Rescan codebase and refresh knowledge base |
-| `/hody-workflow:health` | Project health dashboard with metrics and recommendations |
-| `/hody-workflow:track` | Create, update, and search tracked items (tasks, investigations, questions) |
-| `/hody-workflow:history` | View interaction history across sessions |
-| `/hody-workflow:rules` | View, validate, or initialize project rules (`.hody/rules.yaml`) |
-| `/hody-workflow:team` | View team roles and permissions; check agent/workflow access |
+| `/coregy-workflow:init` | Detect stack, create profile + populate knowledge base |
+| `/coregy-workflow:start-feature` | Start guided feature development workflow |
+| `/coregy-workflow:status` | View profile + KB summary + workflow progress |
+| `/coregy-workflow:resume` | Resume an interrupted workflow from last checkpoint |
+| `/coregy-workflow:refresh` | Re-detect stack, update profile.yaml (`--deep` for dependency analysis) |
+| `/coregy-workflow:kb-search` | Search knowledge base (keyword, tag, agent, status) |
+| `/coregy-workflow:connect` | Configure MCP integrations (GitHub, Linear, Jira) |
+| `/coregy-workflow:ci-report` | Generate CI-compatible test reports |
+| `/coregy-workflow:sync` | Sync knowledge base with team |
+| `/coregy-workflow:update-kb` | Rescan codebase and refresh knowledge base |
+| `/coregy-workflow:health` | Project health dashboard with metrics and recommendations |
+| `/coregy-workflow:track` | Create, update, and search tracked items (tasks, investigations, questions) |
+| `/coregy-workflow:history` | View interaction history across sessions |
+| `/coregy-workflow:rules` | View, validate, or initialize project rules (`.coregy/rules.yaml`) |
+| `/coregy-workflow:team` | View team roles and permissions; check agent/workflow access |
+| `/coregy-workflow:migrate` | Migrate a project from the old Hody plugin (`.hody/` → `.coregy/`) |
 
 ### Agents
 
@@ -151,7 +157,7 @@ When a new version is released:
 
 ```
 /plugin marketplace update
-/plugin update hody-workflow@hody
+/plugin update coregy-workflow@coregy
 # Then restart Claude Code
 ```
 
@@ -160,11 +166,11 @@ When a new version is released:
 ## Project Structure
 
 ```
-Claude_Workflow/
+coregy-workflow/
 ├── .claude-plugin/
-│   └── marketplace.json              # Marketplace: name "hody"
+│   └── marketplace.json              # Marketplace: name "coregy"
 ├── plugins/
-│   └── hody-workflow/
+│   └── coregy-workflow/
 │       ├── .claude-plugin/
 │       │   └── plugin.json           # Plugin metadata (v0.13.0)
 │       ├── agents/                   # 9 specialized agents
@@ -205,7 +211,7 @@ Claude_Workflow/
 │       │   ├── hooks.json
 │       │   ├── inject_project_context.py     # SessionStart + auto-refresh
 │       │   └── quality_gate.py               # Pre-commit quality gate (v2)
-│       └── commands/                 # 15 commands
+│       └── commands/                 # 16 commands
 │           ├── init.md
 │           ├── start-feature.md
 │           ├── status.md
@@ -220,8 +226,9 @@ Claude_Workflow/
 │           ├── track.md
 │           ├── history.md
 │           ├── rules.md
-│           └── team.md
-├── test/                             # 802 tests across 33 files
+│           ├── team.md
+│           └── migrate.md
+├── test/                             # 854 tests across 34 files
 ├── docs/
 │   ├── PROPOSAL.md
 │   ├── ARCHITECTURE.md

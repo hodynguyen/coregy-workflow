@@ -10,7 +10,7 @@ SCRIPTS_DIR = os.path.join(
     os.path.dirname(__file__),
     "..",
     "plugins",
-    "hody-workflow",
+    "coregy-workflow",
     "skills",
     "project-profile",
     "scripts",
@@ -447,7 +447,7 @@ class TestGraphMetadataInIndex(unittest.TestCase):
     def setUp(self):
         self.tmpdir = tempfile.TemporaryDirectory()
         self.cwd = self.tmpdir.name
-        self.kb_dir = os.path.join(self.cwd, ".hody", "knowledge")
+        self.kb_dir = os.path.join(self.cwd, ".coregy", "knowledge")
         os.makedirs(self.kb_dir)
         with open(os.path.join(self.kb_dir, "decisions.md"), "w") as f:
             f.write("---\ntags: [test]\n---\n\n## ADR-1\nTest.\n")

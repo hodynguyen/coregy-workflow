@@ -12,7 +12,7 @@ HOOK_DIR = os.path.join(
     os.path.dirname(__file__),
     "..",
     "plugins",
-    "hody-workflow",
+    "coregy-workflow",
     "hooks",
 )
 sys.path.insert(0, os.path.abspath(HOOK_DIR))
@@ -154,7 +154,7 @@ class TestCheckFile(unittest.TestCase):
 
 
 class TestRunQualityGate(unittest.TestCase):
-    def test_no_hody_dir_passes(self):
+    def test_no_coregy_dir_passes(self):
         """Quality gate should pass when there are no staged files."""
         with tempfile.TemporaryDirectory() as tmpdir:
             # run_quality_gate calls get_staged_files which needs git
@@ -390,12 +390,12 @@ def _git(args, cwd):
 class TestQualityGateHookEndToEnd(unittest.TestCase):
     def setUp(self):
         self.tmpdir = tempfile.mkdtemp()
-        os.makedirs(os.path.join(self.tmpdir, ".hody"))
+        os.makedirs(os.path.join(self.tmpdir, ".coregy"))
         _git(["init", "-q"], self.tmpdir)
         _git(["config", "user.email", "test@example.com"], self.tmpdir)
         _git(["config", "user.name", "Test"], self.tmpdir)
         self.env = dict(os.environ)
-        self.env.pop("HODY_SKIP_QUALITY_GATE", None)
+        self.env.pop("COREGY_SKIP_QUALITY_GATE", None)
 
     def tearDown(self):
         shutil.rmtree(self.tmpdir, ignore_errors=True)
@@ -475,7 +475,7 @@ class TestQualityGateHookEndToEnd(unittest.TestCase):
     def test_skip_env_var_bypasses_the_gate(self):
         self._stage("config.js", AWS_KEY_LINE)
         env = dict(self.env)
-        env["HODY_SKIP_QUALITY_GATE"] = "1"
+        env["COREGY_SKIP_QUALITY_GATE"] = "1"
         result = self._run_hook(
             json.dumps({
                 "tool_input": {"command": "git commit -m x"},
@@ -487,8 +487,8 @@ class TestQualityGateHookEndToEnd(unittest.TestCase):
         self.assertEqual(result.stdout.strip(), "")
 
     def test_uninitialized_project_is_skipped(self):
-        """No .hody/ dir -> the gate does not run at all."""
-        shutil.rmtree(os.path.join(self.tmpdir, ".hody"))
+        """No .coregy/ dir -> the gate does not run at all."""
+        shutil.rmtree(os.path.join(self.tmpdir, ".coregy"))
         self._stage("config.js", AWS_KEY_LINE)
         result = self._hook_json("git commit -m x")
         self.assertEqual(result.returncode, 0)
@@ -548,7 +548,7 @@ class TestGateSeesFilesStagedInSameCommand(unittest.TestCase):
         self.git("init", "-q")
         self.git("config", "user.email", "t@t")
         self.git("config", "user.name", "t")
-        os.makedirs(os.path.join(self.cwd, ".hody"))
+        os.makedirs(os.path.join(self.cwd, ".coregy"))
         self.git("commit", "-q", "--allow-empty", "-m", "init")
 
     def tearDown(self):
@@ -565,7 +565,7 @@ class TestGateSeesFilesStagedInSameCommand(unittest.TestCase):
     def decision(self, command):
         payload = json.dumps({"tool_input": {"command": command}, "cwd": self.cwd})
         env = dict(os.environ)
-        env.pop("HODY_SKIP_QUALITY_GATE", None)
+        env.pop("COREGY_SKIP_QUALITY_GATE", None)
         out = subprocess.run([sys.executable, HOOK], input=payload, env=env,
                              capture_output=True, text=True, timeout=30).stdout
         if not out.strip():

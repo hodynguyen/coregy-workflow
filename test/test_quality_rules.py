@@ -9,7 +9,7 @@ SCRIPTS_DIR = os.path.join(
     os.path.dirname(__file__),
     "..",
     "plugins",
-    "hody-workflow",
+    "coregy-workflow",
     "skills",
     "project-profile",
     "scripts",
@@ -63,8 +63,8 @@ class TestLoadRules(unittest.TestCase):
     def test_load_rules_custom(self):
         """Reads custom YAML correctly."""
         with tempfile.TemporaryDirectory() as tmpdir:
-            hody_dir = os.path.join(tmpdir, ".hody")
-            os.makedirs(hody_dir)
+            coregy_dir = os.path.join(tmpdir, ".coregy")
+            os.makedirs(coregy_dir)
             config = """version: "2"
 
 rules:
@@ -74,7 +74,7 @@ rules:
   file_size:
     max_kb: 1000
 """
-            with open(os.path.join(hody_dir, "quality-rules.yaml"), "w") as f:
+            with open(os.path.join(coregy_dir, "quality-rules.yaml"), "w") as f:
                 f.write(config)
 
             rules = load_rules(tmpdir)
@@ -387,9 +387,9 @@ class TestSecretsIgnorePaths(unittest.TestCase):
     def test_run_checks_honours_secrets_ignore_paths(self):
         """End-to-end: the exemption reaches run_checks, not just the checker."""
         with tempfile.TemporaryDirectory() as tmp:
-            hody = os.path.join(tmp, ".hody")
-            os.makedirs(hody)
-            with open(os.path.join(hody, "quality-rules.yaml"), "w") as f:
+            coregy = os.path.join(tmp, ".coregy")
+            os.makedirs(coregy)
+            with open(os.path.join(coregy, "quality-rules.yaml"), "w") as f:
                 f.write(
                     "version: \"1\"\n"
                     "rules:\n"
@@ -432,8 +432,8 @@ class TestDefaultConfigRoundTrip(unittest.TestCase):
     def test_checks_still_fire_with_default_config_on_disk(self):
         from quality_rules import run_checks, generate_default_config
         with tempfile.TemporaryDirectory() as cwd:
-            os.makedirs(os.path.join(cwd, ".hody"))
-            with open(os.path.join(cwd, ".hody", "quality-rules.yaml"), "w") as f:
+            os.makedirs(os.path.join(cwd, ".coregy"))
+            with open(os.path.join(cwd, ".coregy", "quality-rules.yaml"), "w") as f:
                 f.write(generate_default_config())
             result = run_checks(cwd, "a.js", 'console.log(1)\nconst k = "STRIPE_SECRET"\n')
             self.assertTrue(any("console.log" in w["message"] for w in result["warnings"]))

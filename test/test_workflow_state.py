@@ -10,7 +10,7 @@ SCRIPTS_DIR = os.path.join(
     os.path.dirname(__file__),
     "..",
     "plugins",
-    "hody-workflow",
+    "coregy-workflow",
     "skills",
     "project-profile",
     "scripts",
@@ -40,7 +40,7 @@ class TestInitWorkflow(unittest.TestCase):
     def setUp(self):
         self.tmpdir = tempfile.TemporaryDirectory()
         self.cwd = self.tmpdir.name
-        os.makedirs(os.path.join(self.cwd, ".hody"), exist_ok=True)
+        os.makedirs(os.path.join(self.cwd, ".coregy"), exist_ok=True)
 
     def tearDown(self):
         self.tmpdir.cleanup()
@@ -80,7 +80,7 @@ class TestInitWorkflow(unittest.TestCase):
         self.assertEqual(state["spec_file"], "spec-oauth2-login.md")
 
         # Verify file was written
-        path = os.path.join(self.cwd, ".hody", "state.json")
+        path = os.path.join(self.cwd, ".coregy", "state.json")
         self.assertTrue(os.path.isfile(path))
 
     def test_workflow_id_generation(self):
@@ -366,7 +366,7 @@ class TestConfirmSpec(unittest.TestCase):
     def setUp(self):
         self.tmpdir = tempfile.TemporaryDirectory()
         self.cwd = self.tmpdir.name
-        os.makedirs(os.path.join(self.cwd, ".hody"), exist_ok=True)
+        os.makedirs(os.path.join(self.cwd, ".coregy"), exist_ok=True)
 
     def tearDown(self):
         self.tmpdir.cleanup()
@@ -409,7 +409,7 @@ class TestFeatureLog(unittest.TestCase):
     def setUp(self):
         self.tmpdir = tempfile.TemporaryDirectory()
         self.cwd = self.tmpdir.name
-        os.makedirs(os.path.join(self.cwd, ".hody", "knowledge"), exist_ok=True)
+        os.makedirs(os.path.join(self.cwd, ".coregy", "knowledge"), exist_ok=True)
 
     def tearDown(self):
         self.tmpdir.cleanup()
@@ -463,7 +463,7 @@ class TestFeatureLog(unittest.TestCase):
             log_file="log-test-feature.md",
         )
 
-        path = os.path.join(self.cwd, ".hody", "knowledge", "log-test-feature.md")
+        path = os.path.join(self.cwd, ".coregy", "knowledge", "log-test-feature.md")
         with open(path) as f:
             content = f.read()
 
@@ -485,7 +485,7 @@ class TestFeatureLog(unittest.TestCase):
         append_feature_log(self.cwd, "architect", "THINK",
                            summary="Designed system", log_file="log-multi.md")
 
-        path = os.path.join(self.cwd, ".hody", "knowledge", "log-multi.md")
+        path = os.path.join(self.cwd, ".coregy", "knowledge", "log-multi.md")
         with open(path) as f:
             content = f.read()
 
@@ -507,7 +507,7 @@ class TestFeatureLog(unittest.TestCase):
 
         finalize_feature_log(self.cwd, "log-final.md")
 
-        path = os.path.join(self.cwd, ".hody", "knowledge", "log-final.md")
+        path = os.path.join(self.cwd, ".coregy", "knowledge", "log-final.md")
         with open(path) as f:
             content = f.read()
 
@@ -528,7 +528,7 @@ class TestFeatureLog(unittest.TestCase):
         complete_agent(self.cwd, "researcher", "All done")
         complete_workflow(self.cwd)
 
-        path = os.path.join(self.cwd, ".hody", "knowledge", "log-auto-final.md")
+        path = os.path.join(self.cwd, ".coregy", "knowledge", "log-auto-final.md")
         with open(path) as f:
             content = f.read()
 
@@ -550,7 +550,7 @@ class TestCheckpointIntegration(unittest.TestCase):
     def setUp(self):
         self.tmpdir = tempfile.TemporaryDirectory()
         self.cwd = self.tmpdir.name
-        os.makedirs(os.path.join(self.cwd, ".hody"), exist_ok=True)
+        os.makedirs(os.path.join(self.cwd, ".coregy"), exist_ok=True)
 
     def tearDown(self):
         self.tmpdir.cleanup()
@@ -680,7 +680,7 @@ class TestSetExecutionMode(unittest.TestCase):
     def setUp(self):
         self.tmpdir = tempfile.TemporaryDirectory()
         self.cwd = self.tmpdir.name
-        os.makedirs(os.path.join(self.cwd, ".hody"), exist_ok=True)
+        os.makedirs(os.path.join(self.cwd, ".coregy"), exist_ok=True)
 
     def tearDown(self):
         self.tmpdir.cleanup()

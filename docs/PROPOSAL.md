@@ -1,4 +1,4 @@
-# Hody Workflow - Development Proposal
+# Coregy Workflow - Development Proposal
 
 > A project-aware, abstract development workflow plugin for Claude Code with 9 specialized AI agents.
 
@@ -33,7 +33,7 @@ When working with Claude Code on real-world projects:
 
 ### Solution
 
-**Hody Workflow** is a Claude Code plugin that provides:
+**Coregy Workflow** is a Claude Code plugin that provides:
 
 - **9 specialized agents** for each phase of development
 - **Auto-detect project stack** — zero config when switching projects
@@ -114,13 +114,13 @@ python3 -m unittest discover -s test -v
 cd ~/projects/my-saas-app
 claude
 
-# Initialize hody workflow
-User: /hody-workflow:init
+# Initialize coregy workflow
+User: /coregy-workflow:init
 
 # Claude Code runs:
 # 1. detect_stack.py scans project
-# 2. Creates .hody/profile.yaml
-# 3. Creates .hody/knowledge/ with templates
+# 2. Creates .coregy/profile.yaml
+# 3. Creates .coregy/knowledge/ with templates
 # 4. Output: "Detected: React 18 + TypeScript + Fastify + PostgreSQL + GitHub Actions"
 
 # From now on, every session auto-injects project context
@@ -137,12 +137,12 @@ User: "I need to implement user authentication with Google OAuth"
 # researcher agent activates
 Claude (researcher): "Let me research Google OAuth best practices for React + Fastify stack..."
   → Investigates @react-oauth/google, passport-google-oauth20
-  → Writes findings to .hody/knowledge/decisions.md
+  → Writes findings to .coregy/knowledge/decisions.md
 
 # architect agent activates
 Claude (architect): "Based on the research, here's the auth flow design..."
-  → Creates sequence diagram in .hody/knowledge/architecture.md
-  → Defines API contracts in .hody/knowledge/api-contracts.md
+  → Creates sequence diagram in .coregy/knowledge/architecture.md
+  → Defines API contracts in .coregy/knowledge/api-contracts.md
   → Writes business rules (session timeout, refresh token) to business-rules.md
 
 # ─── PHASE 2: BUILD ───
@@ -224,8 +224,8 @@ User: "Use agent devops to setup monitoring"
 
 ### 4.1. GitHub Repository
 
-- **Repo name**: `Claude_Workflow`
-- **URL**: `github.com/hodynguyen/Claude_Workflow`
+- **Repo name**: `coregy-workflow`
+- **URL**: `github.com/hodynguyen/coregy-workflow`
 - **Visibility**: Public (so other users can install)
 
 ### 4.2. Marketplace Registration
@@ -234,39 +234,39 @@ File `.claude-plugin/marketplace.json` at repo root:
 
 ```json
 {
-  "name": "hody",
+  "name": "coregy",
   "owner": {
-    "name": "Hody",
+    "name": "Coregy",
     "email": "your-email@example.com"
   },
   "plugins": [
     {
-      "name": "hody-workflow",
-      "source": "./plugins/hody-workflow"
+      "name": "coregy-workflow",
+      "source": "./plugins/coregy-workflow"
     }
   ]
 }
 ```
 
-- `name: "hody"` — this is the marketplace name; users will reference it with `@hody`
-- To add more plugins later (e.g., `hody-voice`, `hody-mcp`), just add entries to the `plugins` array
+- `name: "coregy"` — this is the marketplace name; users will reference it with `@coregy`
+- To add more plugins later (e.g., `coregy-voice`, `coregy-mcp`), just add entries to the `plugins` array
 
 ### 4.3. User Installation
 
 ```bash
 # Step 1: Add marketplace
-/plugin marketplace add hodynguyen/Claude_Workflow
+/plugin marketplace add hodynguyen/coregy-workflow
 
 # Step 2: Install plugin
-/plugin install hody-workflow@hody
+/plugin install coregy-workflow@coregy
 
 # Step 3: Restart Claude Code
 # (plugins load at startup)
 
-# Step 4: Init hody workflow in any project
+# Step 4: Init coregy workflow in any project
 cd ~/projects/my-app
 claude
-/hody-workflow:init
+/coregy-workflow:init
 ```
 
 ### 4.4. Update Plugin
@@ -276,16 +276,16 @@ When you push new code to GitHub:
 ```bash
 # User updates plugin
 /plugin marketplace update
-/plugin update hody-workflow@hody
+/plugin update coregy-workflow@coregy
 # Restart Claude Code
 ```
 
 ### 4.5. What to commit in the target project
 
-When a user runs `/hody-workflow:init` in their project, it creates the `.hody/` directory:
+When a user runs `/coregy-workflow:init` in their project, it creates the `.coregy/` directory:
 
 ```
-.hody/
+.coregy/
 ├── profile.yaml              ← SHOULD commit (team shares the profile)
 ├── rules.yaml                ← SHOULD commit (team shares project rules)
 ├── tracker.db                ← DO NOT commit (local-only, add to .gitignore)
@@ -306,13 +306,13 @@ Knowledge base SHOULD be committed — it's a team asset, not temp files.
 
 ## 5. Step-by-step Build Guide
 
-Specific steps to build the hody-workflow plugin from scratch.
+Specific steps to build the coregy-workflow plugin from scratch.
 
 ### Step 1: Create GitHub repo
 
 ```bash
-mkdir hody-workflow
-cd hody-workflow
+mkdir coregy-workflow
+cd coregy-workflow
 git init
 
 # Create .gitignore
@@ -331,7 +331,7 @@ git add .gitignore
 git commit -m "init: create repo"
 
 # Create repo on GitHub and push
-gh repo create hody-workflow --public --source=. --push
+gh repo create coregy-workflow --public --source=. --push
 ```
 
 ### Step 2: Create marketplace config
@@ -343,15 +343,15 @@ mkdir -p .claude-plugin
 Create `.claude-plugin/marketplace.json`:
 ```json
 {
-  "name": "hody",
+  "name": "coregy",
   "owner": {
-    "name": "Hody",
+    "name": "Coregy",
     "email": "your-email@example.com"
   },
   "plugins": [
     {
-      "name": "hody-workflow",
-      "source": "./plugins/hody-workflow"
+      "name": "coregy-workflow",
+      "source": "./plugins/coregy-workflow"
     }
   ]
 }
@@ -361,26 +361,26 @@ Create `.claude-plugin/marketplace.json`:
 
 ```bash
 # Plugin root
-mkdir -p plugins/hody-workflow/.claude-plugin
-mkdir -p plugins/hody-workflow/agents
-mkdir -p plugins/hody-workflow/skills/project-profile/scripts
-mkdir -p plugins/hody-workflow/skills/knowledge-base/templates
-mkdir -p plugins/hody-workflow/hooks
-mkdir -p plugins/hody-workflow/commands
-mkdir -p plugins/hody-workflow/output-styles
+mkdir -p plugins/coregy-workflow/.claude-plugin
+mkdir -p plugins/coregy-workflow/agents
+mkdir -p plugins/coregy-workflow/skills/project-profile/scripts
+mkdir -p plugins/coregy-workflow/skills/knowledge-base/templates
+mkdir -p plugins/coregy-workflow/hooks
+mkdir -p plugins/coregy-workflow/commands
+mkdir -p plugins/coregy-workflow/output-styles
 
 # Test directory
 mkdir -p test
 ```
 
-Create `plugins/hody-workflow/.claude-plugin/plugin.json`:
+Create `plugins/coregy-workflow/.claude-plugin/plugin.json`:
 ```json
 {
-  "name": "hody-workflow",
+  "name": "coregy-workflow",
   "description": "Project-aware development workflow with 9 specialized AI agents",
   "version": "0.1.0",
   "author": {
-    "name": "Hody",
+    "name": "Coregy",
     "email": "your-email@example.com"
   },
   "license": "MIT",
@@ -397,7 +397,7 @@ Create `plugins/hody-workflow/.claude-plugin/plugin.json`:
 
 ### Step 4: Write hooks.json
 
-Create `plugins/hody-workflow/hooks/hooks.json`:
+Create `plugins/coregy-workflow/hooks/hooks.json`:
 ```json
 {
   "hooks": {
@@ -418,11 +418,11 @@ Create `plugins/hody-workflow/hooks/hooks.json`:
 
 ### Step 5: Write inject_project_context.py
 
-Create `plugins/hody-workflow/hooks/inject_project_context.py`:
+Create `plugins/coregy-workflow/hooks/inject_project_context.py`:
 ```python
 #!/usr/bin/env python3
 """
-SessionStart hook: reads .hody/profile.yaml and injects project context
+SessionStart hook: reads .coregy/profile.yaml and injects project context
 into the system message so every agent knows the current tech stack.
 """
 import json
@@ -434,7 +434,7 @@ def main():
         input_data = json.load(sys.stdin)
         cwd = input_data.get("cwd", os.getcwd())
 
-        profile_path = os.path.join(cwd, ".hody", "profile.yaml")
+        profile_path = os.path.join(cwd, ".coregy", "profile.yaml")
         if not os.path.isfile(profile_path):
             # No profile → skip
             print("{}")
@@ -445,7 +445,7 @@ def main():
             profile_content = f.read()
 
         # Inject into system message
-        summary = f"[Hody Workflow] Project profile loaded from .hody/profile.yaml"
+        summary = f"[Coregy Workflow] Project profile loaded from .coregy/profile.yaml"
         output = {
             "systemMessage": summary
         }
@@ -461,35 +461,35 @@ if __name__ == "__main__":
 ```
 
 ```bash
-chmod +x plugins/hody-workflow/hooks/inject_project_context.py
+chmod +x plugins/coregy-workflow/hooks/inject_project_context.py
 ```
 
 ### Step 6: Write detect_stack.py
 
-Create `plugins/hody-workflow/skills/project-profile/scripts/detect_stack.py`:
+Create `plugins/coregy-workflow/skills/project-profile/scripts/detect_stack.py`:
 - Scan config files (package.json, go.mod, requirements.txt, pyproject.toml...)
-- Output `.hody/profile.yaml`
+- Output `.coregy/profile.yaml`
 - Start with top 5 stacks: Node/React, Node/Vue, Go, Python/Django, Python/FastAPI
 - Expand gradually
 
 ```bash
-chmod +x plugins/hody-workflow/skills/project-profile/scripts/detect_stack.py
+chmod +x plugins/coregy-workflow/skills/project-profile/scripts/detect_stack.py
 ```
 
 ### Step 7: Write SKILL.md for project-profile
 
-Create `plugins/hody-workflow/skills/project-profile/SKILL.md`:
+Create `plugins/coregy-workflow/skills/project-profile/SKILL.md`:
 ```markdown
 ---
 name: project-profile
 description: Use this skill when user asks to "detect project stack",
-  "init hody", "setup hody workflow", or when you need to understand
+  "init coregy", "setup coregy workflow", or when you need to understand
   the current project's technology stack.
 ---
 
 # Project Profile
 
-Auto-detect project tech stack and create .hody/profile.yaml.
+Auto-detect project tech stack and create .coregy/profile.yaml.
 
 ## Usage
 
@@ -499,40 +499,40 @@ python3 ${SKILL_ROOT}/scripts/detect_stack.py --cwd .
 \`\`\`
 
 ## Output
-Creates `.hody/profile.yaml` with detected stack info.
+Creates `.coregy/profile.yaml` with detected stack info.
 ```
 
 ### Step 8: Write first 3 agents (MVP)
 
 Start with the 3 most important agents:
 
-1. `plugins/hody-workflow/agents/architect.md`
-2. `plugins/hody-workflow/agents/code-reviewer.md`
-3. `plugins/hody-workflow/agents/unit-tester.md`
+1. `plugins/coregy-workflow/agents/architect.md`
+2. `plugins/coregy-workflow/agents/code-reviewer.md`
+3. `plugins/coregy-workflow/agents/unit-tester.md`
 
 Each file follows the agent prompt template (see [ARCHITECTURE.md — Agent Prompt Template](./ARCHITECTURE.md#32-agent-prompt-template)).
 
-### Step 9: Write /hody-workflow:init command
+### Step 9: Write /coregy-workflow:init command
 
-Create `plugins/hody-workflow/commands/init.md`:
+Create `plugins/coregy-workflow/commands/init.md`:
 ```markdown
 ---
 name: init
-description: Initialize hody workflow for the current project
+description: Initialize coregy workflow for the current project
 ---
 
-# /hody-workflow:init
+# /coregy-workflow:init
 
-Initialize hody workflow:
+Initialize coregy workflow:
 
-1. Run detect_stack.py to create .hody/profile.yaml
-2. Create .hody/knowledge/ directory with template files
+1. Run detect_stack.py to create .coregy/profile.yaml
+2. Create .coregy/knowledge/ directory with template files
 3. Show detected stack summary
 ```
 
 ### Step 10: Write knowledge base templates
 
-Create files in `plugins/hody-workflow/skills/knowledge-base/templates/`:
+Create files in `plugins/coregy-workflow/skills/knowledge-base/templates/`:
 - `architecture.md`
 - `decisions.md`
 - `api-contracts.md`
@@ -544,7 +544,7 @@ Each file contains the standard template (see [ARCHITECTURE.md — Knowledge Bas
 
 ### Step 11: Write README.md
 
-Create `README.md` (repo root) and `plugins/hody-workflow/README.md` (plugin docs):
+Create `README.md` (repo root) and `plugins/coregy-workflow/README.md` (plugin docs):
 - Overview
 - Installation
 - Quick start
@@ -559,28 +559,28 @@ cd ~/projects/some-test-project
 claude
 
 # Add marketplace from local path (or from GitHub after pushing)
-/plugin marketplace add hodynguyen/Claude_Workflow
+/plugin marketplace add hodynguyen/coregy-workflow
 
 # Install plugin
-/plugin install hody-workflow@hody
+/plugin install coregy-workflow@coregy
 
 # Restart Claude Code, then test
-/hody-workflow:init
+/coregy-workflow:init
 ```
 
 ### Step 13: Push and publish
 
 ```bash
-cd ~/path/to/hody-workflow
+cd ~/path/to/coregy-workflow
 git add .
-git commit -m "feat: initial hody-workflow plugin with 3 MVP agents"
+git commit -m "feat: initial coregy-workflow plugin with 3 MVP agents"
 git push origin main
 ```
 
 From now on, anyone can install the plugin with:
 ```bash
-/plugin marketplace add hodynguyen/Claude_Workflow
-/plugin install hody-workflow@hody
+/plugin marketplace add hodynguyen/coregy-workflow
+/plugin install coregy-workflow@coregy
 ```
 
 ---
@@ -593,7 +593,7 @@ From now on, anyone can install the plugin with:
 |-----------|--------|-----------|
 | Agent prompts are static markdown | Cannot template dynamically | Agents read profile.yaml at runtime |
 | Hooks timeout max 60s | detect_stack must be fast | Only scan config files, not the entire codebase |
-| No persistent state beyond files | Session state lost on restart | Use `.hody/` directory on filesystem |
+| No persistent state beyond files | Session state lost on restart | Use `.coregy/` directory on filesystem |
 | Plugins only load at Claude Code startup | Plugin changes require restart | Use session hooks for dynamic behavior |
 
 ### Risks

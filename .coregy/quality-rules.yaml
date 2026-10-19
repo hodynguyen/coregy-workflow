@@ -1,0 +1,60 @@
+# Coregy Workflow Quality Rules -- config for this repo (the plugin's own source).
+#
+# This project IS the quality gate, so several files legitimately contain the
+# exact strings the gate scans for: the pattern tables that define the rules,
+# and the fixtures of the tests that prove those rules fire. Without the
+# exemptions below the gate blocks every commit to its own source tree.
+#
+# Keep these lists as narrow as possible -- each entry is a file the scanner
+# no longer protects.
+
+version: "1"
+
+rules:
+  secrets:
+    enabled: true
+    severity: error
+    custom_patterns: []
+    ignore_paths:
+      # Fixtures asserting the scanner catches AWS keys, private keys, etc.
+      - "test/test_quality_gate.py"
+      - "test/test_quality_rules.py"
+      # BUILTIN_SECRET_PATTERNS itself
+      - "scripts/quality_rules.py"
+      - "hooks/quality_gate.py"
+
+  security:
+    enabled: true
+    severity: error
+    ignore_paths:
+      - "test/"
+      - "*.test.*"
+      - "*.spec.*"
+      # BUILTIN_SECURITY_PATTERNS -- the anti-pattern table itself
+      - "scripts/quality_rules.py"
+      - "hooks/quality_gate.py"
+      # Documentation that quotes those patterns when explaining the gate
+      - "commands/rules.md"
+
+  debug_statements:
+    enabled: true
+    severity: warning
+    languages:
+      python:
+        - "breakpoint()"
+
+  file_size:
+    enabled: true
+    severity: error
+    max_kb: 500
+
+  coverage:
+    enabled: false
+    min_percentage: 80
+    command: ""
+
+  dependency_audit:
+    enabled: false
+    severity: warning
+    command: ""
+    fail_on: high

@@ -1,0 +1,31 @@
+project:
+  name: coregy-workflow-plugin
+  type: claude-code-plugin
+
+languages:
+  - python
+  - markdown
+
+scripts:
+  language: python
+  version: "3.8+"
+  dependencies:
+    - PyYAML
+
+testing:
+  framework: unittest
+  test_dir: test/
+  test_count: 110
+  command: "python3 -m unittest discover -s test -v"
+
+devops:
+  ci: none
+  containerize: none
+
+conventions:
+  commit_style: conventional
+  linter: none
+  formatter: none
+
+integrations:
+  graphify: true

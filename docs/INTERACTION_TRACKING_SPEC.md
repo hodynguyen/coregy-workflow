@@ -8,7 +8,7 @@ status: active
 # Interaction Tracking & State Persistence — Spec chi tiet
 
 > Thiet ke toan dien cho he thong theo doi tuong tac va luu tru trang thai,
-> thay the va mo rong `.hody/state.json` hien tai.
+> thay the va mo rong `.coregy/state.json` hien tai.
 
 ---
 
@@ -96,7 +96,7 @@ status: active
 
 ## 2. Data Model / Schema SQLite
 
-Database file: `.hody/tracker.db`
+Database file: `.coregy/tracker.db`
 
 ### 2.1. Schema
 
@@ -382,7 +382,7 @@ Item duoc tao **tu dong boi SessionStart hook** hoac **thu cong boi agent/comman
 **Phuong an thuc te:**
 - Phan loai **khong tu dong hoan toan** cho moi message
 - Thay vao do, agent duoc huong dan trong prompt de goi `tracker.py` CLI khi bat dau va ket thuc mot tuong tac co y nghia
-- `/hody-workflow:start-feature` tu dong tao item type=task
+- `/coregy-workflow:start-feature` tu dong tao item type=task
 - Agent prompts duoc bo sung section huong dan goi tracker
 
 ### 4.2. Ai trigger chuyen trang thai?
@@ -390,7 +390,7 @@ Item duoc tao **tu dong boi SessionStart hook** hoac **thu cong boi agent/comman
 | Trigger | Mo ta | Vi du |
 |---------|-------|-------|
 | Agent (tu dong) | Agent goi tracker API khi bat dau/ket thuc cong viec | Backend agent bat dau, tao item task, chuyen sang in_progress |
-| Command | Cac command goi tracker | `/hody-workflow:start-feature` tao task, `/hody-workflow:resume` chuyen task sang in_progress |
+| Command | Cac command goi tracker | `/coregy-workflow:start-feature` tao task, `/coregy-workflow:resume` chuyen task sang in_progress |
 | Hook | SessionStart hook kiem tra va cap nhat | Phat hien item bi bo qua lau, chuyen sang canh bao |
 | User (thu cong) | User yeu cau chuyen trang thai | "Danh dau task nay la completed" |
 
@@ -467,7 +467,7 @@ CLASSIFICATION_SIGNALS = {
 Khi session bat dau, hook doc tu `tracker.db` va inject context:
 
 ```
-[Hody Tracker] Active items:
+[Coregy Tracker] Active items:
   - [HIGH] Task: "OAuth2 login" (in_progress, 3 ngay) — workflow: feat-oauth2-login-20260318
   - [MED] Task: "Fix payment timeout" (paused, 5 ngay)
   - [MED] Investigation: "Auth module performance" (paused, 2 tuan)
@@ -593,10 +593,10 @@ Khi agent ghi vao KB file:
 ```python
 # Agent ghi xong api-contracts.md
 tracker.add_kb_ref(item_id, "api-contracts.md#OAuth2-endpoints")
-tracker.add_related_file(item_id, ".hody/knowledge/api-contracts.md")
+tracker.add_related_file(item_id, ".coregy/knowledge/api-contracts.md")
 ```
 
-Khi search KB (`/hody-workflow:kb-search`):
+Khi search KB (`/coregy-workflow:kb-search`):
 - Co the search theo item: "file nao da duoc thay doi boi task OAuth2?"
 - Cross-reference: "ADR nao lien quan den investigation nay?"
 
@@ -608,7 +608,7 @@ Mo rong `inject_project_context.py`:
 # Trong ham main(), sau khi inject profile:
 
 # --- TRACKER INJECTION ---
-tracker_db = os.path.join(cwd, ".hody", "tracker.db")
+tracker_db = os.path.join(cwd, ".coregy", "tracker.db")
 if os.path.isfile(tracker_db):
     try:
         # Import tracker module
@@ -640,19 +640,19 @@ Them section vao moi agent prompt:
 
 Khi bat dau cong viec, ghi nhan vao tracker:
 
-1. Doc `.hody/tracker.db` context (da inject boi SessionStart hook)
+1. Doc `.coregy/tracker.db` context (da inject boi SessionStart hook)
 2. Xac dinh yeu cau hien tai thuoc loai nao (task, investigation, question, ...)
 3. Neu la cong viec moi: goi tracker CLI de tao item
    ```bash
-   python3 .hody/scripts/tracker.py create --type task --title "..." --tags "auth,api"
+   python3 .coregy/scripts/tracker.py create --type task --title "..." --tags "auth,api"
    ```
 4. Khi hoan thanh: cap nhat trang thai
    ```bash
-   python3 .hody/scripts/tracker.py update <item_id> --status completed
+   python3 .coregy/scripts/tracker.py update <item_id> --status completed
    ```
 5. Neu co findings/ket luan: ghi vao notes
    ```bash
-   python3 .hody/scripts/tracker.py note <item_id> "Ket luan: dung JWT voi refresh token"
+   python3 .coregy/scripts/tracker.py note <item_id> "Ket luan: dung JWT voi refresh token"
    ```
 ```
 
@@ -662,16 +662,16 @@ Khi bat dau cong viec, ghi nhan vao tracker:
 
 | Command hien tai | Thay doi |
 |-----------------|----------|
-| `/hody-workflow:start-feature` | Them buoc: tao item type=task trong tracker.db |
-| `/hody-workflow:resume` | Doc tracker.db de hien thi context day du hon |
-| `/hody-workflow:status` | Them section "Active Items" tu tracker.db |
-| `/hody-workflow:init` | Tao tracker.db (init schema) cung voi cac file khac |
+| `/coregy-workflow:start-feature` | Them buoc: tao item type=task trong tracker.db |
+| `/coregy-workflow:resume` | Doc tracker.db de hien thi context day du hon |
+| `/coregy-workflow:status` | Them section "Active Items" tu tracker.db |
+| `/coregy-workflow:init` | Tao tracker.db (init schema) cung voi cac file khac |
 
 **Command moi:**
 | Command | Mo ta |
 |---------|-------|
-| `/hody-workflow:track` | Tao/cap nhat/search items trong tracker |
-| `/hody-workflow:history` | Xem lich su items, filter theo type/tag/thoi gian |
+| `/coregy-workflow:track` | Tao/cap nhat/search items trong tracker |
+| `/coregy-workflow:history` | Xem lich su items, filter theo type/tag/thoi gian |
 
 ---
 
@@ -680,7 +680,7 @@ Khi bat dau cong viec, ghi nhan vao tracker:
 ### 7.1. Nguyen tac
 
 - **Khong pha vo gi:** `state.json` van hoat dong nhu cu
-- **Opt-in:** Tracker chi duoc tao khi user chay `/hody-workflow:init` (tren project da co) hoac khi project moi
+- **Opt-in:** Tracker chi duoc tao khi user chay `/coregy-workflow:init` (tren project da co) hoac khi project moi
 - **Backward compatible:** Moi function trong `state.py` van hoat dong khong can tracker.db
 
 ### 7.2. Cac buoc migration
@@ -689,7 +689,7 @@ Khi bat dau cong viec, ghi nhan vao tracker:
 ```python
 def init_tracker(cwd):
     """Tao tracker.db voi schema. An toan goi nhieu lan."""
-    db_path = os.path.join(cwd, ".hody", "tracker.db")
+    db_path = os.path.join(cwd, ".coregy", "tracker.db")
     if os.path.isfile(db_path):
         return  # Da ton tai
 
@@ -737,7 +737,7 @@ def migrate_from_state_json(cwd):
 
 def _sync_to_tracker(cwd, state):
     """Dong bo trang thai workflow vao tracker.db (neu ton tai)."""
-    db_path = os.path.join(cwd, ".hody", "tracker.db")
+    db_path = os.path.join(cwd, ".coregy", "tracker.db")
     if not os.path.isfile(db_path):
         return  # Tracker chua duoc init
     try:
@@ -749,7 +749,7 @@ def _sync_to_tracker(cwd, state):
 
 ### 7.3. Timeline
 
-1. **v0.6.0** — Tao `tracker.py`, schema, API co ban. Init tracker trong `/hody-workflow:init`. Khong thay doi behavior hien tai.
+1. **v0.6.0** — Tao `tracker.py`, schema, API co ban. Init tracker trong `/coregy-workflow:init`. Khong thay doi behavior hien tai.
 2. **v0.6.1** — Tich hop voi SessionStart hook (inject context). Them awareness layer.
 3. **v0.7.0** — Commands moi (`/track`, `/history`). Agent prompt updates. Day du tich hop.
 
@@ -759,7 +759,7 @@ def _sync_to_tracker(cwd, state):
 
 ### 8.1. Module: `tracker.py`
 
-File: `plugins/hody-workflow/skills/project-profile/scripts/tracker.py`
+File: `plugins/coregy-workflow/skills/project-profile/scripts/tracker.py`
 
 ```python
 # ===== DATABASE =====
@@ -993,10 +993,10 @@ Nhieu tuong tac la tham (trivial) — khong nen tao item:
 
 Them vao template `.gitignore` khi init:
 ```
-# Hody Workflow (local state)
-.hody/tracker.db
-.hody/tracker.db-wal
-.hody/tracker.db-shm
+# Coregy Workflow (local state)
+.coregy/tracker.db
+.coregy/tracker.db-wal
+.coregy/tracker.db-shm
 ```
 
 `tracker.db` la local state, khong commit len git. Khac voi `state.json` va knowledge base la shared.
@@ -1009,7 +1009,7 @@ Them vao template `.gitignore` khi init:
 === Session bat dau ===
 
 [Hook inject]:
-"[Hody Tracker] Active: 1 task in_progress (OAuth2 login, 3d),
+"[Coregy Tracker] Active: 1 task in_progress (OAuth2 login, 3d),
  1 task paused (Payment refactor, 5d).
  Warning: Payment refactor paused 5 ngay."
 
@@ -1044,7 +1044,7 @@ Agent:
 ## Phu luc B: File structure sau khi implement
 
 ```
-plugins/hody-workflow/
+plugins/coregy-workflow/
 ├── skills/project-profile/scripts/
 │   ├── tracker.py             # Module chinh — API + CLI
 │   ├── tracker_schema.py      # Schema SQL + migration logic

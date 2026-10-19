@@ -11,7 +11,7 @@ SCRIPTS_DIR = os.path.join(
     os.path.dirname(__file__),
     "..",
     "plugins",
-    "hody-workflow",
+    "coregy-workflow",
     "skills",
     "project-profile",
     "scripts",
@@ -145,7 +145,7 @@ class TestCreateTechDebtEntry(unittest.TestCase):
     def test_create_tech_debt_entry_new(self):
         """Creates entry when tech-debt.md is empty or template."""
         with tempfile.TemporaryDirectory() as tmpdir:
-            kb_dir = os.path.join(tmpdir, ".hody", "knowledge")
+            kb_dir = os.path.join(tmpdir, ".coregy", "knowledge")
             os.makedirs(kb_dir)
             td_path = os.path.join(kb_dir, "tech-debt.md")
             with open(td_path, "w") as f:
@@ -167,7 +167,7 @@ class TestCreateTechDebtEntry(unittest.TestCase):
     def test_create_tech_debt_entry_append(self):
         """Appends to existing tech-debt entries."""
         with tempfile.TemporaryDirectory() as tmpdir:
-            kb_dir = os.path.join(tmpdir, ".hody", "knowledge")
+            kb_dir = os.path.join(tmpdir, ".coregy", "knowledge")
             os.makedirs(kb_dir)
             td_path = os.path.join(kb_dir, "tech-debt.md")
             with open(td_path, "w") as f:
@@ -191,7 +191,7 @@ class TestCreateTechDebtEntry(unittest.TestCase):
     def test_create_tech_debt_entry_no_kb(self):
         """Creates kb dir if missing."""
         with tempfile.TemporaryDirectory() as tmpdir:
-            # No .hody/knowledge dir exists
+            # No .coregy/knowledge dir exists
             failures = [
                 {"test_name": "test_x", "file": "", "error": "fail", "type": "test_failure"},
             ]
@@ -365,7 +365,7 @@ class TestRunCiFeedback(unittest.TestCase):
             self.assertEqual(result["failures"], [])
             self.assertFalse(result["tech_debt_updated"])
             # No tech-debt.md created
-            td_path = os.path.join(tmpdir, ".hody", "knowledge", "tech-debt.md")
+            td_path = os.path.join(tmpdir, ".coregy", "knowledge", "tech-debt.md")
             self.assertFalse(os.path.exists(td_path))
 
     @patch("ci_monitor._run_gh")
@@ -391,7 +391,7 @@ class TestRunCiFeedback(unittest.TestCase):
             self.assertGreater(len(result["failures"]), 0)
             self.assertTrue(result["tech_debt_updated"])
             # tech-debt.md was created
-            td_path = os.path.join(tmpdir, ".hody", "knowledge", "tech-debt.md")
+            td_path = os.path.join(tmpdir, ".coregy", "knowledge", "tech-debt.md")
             self.assertTrue(os.path.exists(td_path))
             with open(td_path) as f:
                 content = f.read()

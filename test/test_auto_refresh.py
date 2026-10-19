@@ -12,7 +12,7 @@ HOOK_DIR = os.path.join(
     os.path.dirname(__file__),
     "..",
     "plugins",
-    "hody-workflow",
+    "coregy-workflow",
     "hooks",
 )
 sys.path.insert(0, os.path.abspath(HOOK_DIR))
@@ -22,7 +22,7 @@ SCRIPT_DIR = os.path.join(
     os.path.dirname(__file__),
     "..",
     "plugins",
-    "hody-workflow",
+    "coregy-workflow",
     "skills",
     "project-profile",
     "scripts",
@@ -35,9 +35,9 @@ from detectors.integrations import load_existing_integrations
 
 class TestIsProfileStale(unittest.TestCase):
     def _make_profile(self, tmpdir, content="project:\n  name: test\n"):
-        hody_dir = os.path.join(tmpdir, ".hody")
-        os.makedirs(hody_dir, exist_ok=True)
-        profile_path = os.path.join(hody_dir, "profile.yaml")
+        coregy_dir = os.path.join(tmpdir, ".coregy")
+        os.makedirs(coregy_dir, exist_ok=True)
+        profile_path = os.path.join(coregy_dir, "profile.yaml")
         with open(profile_path, "w") as f:
             f.write(content)
         return profile_path
@@ -109,15 +109,15 @@ class TestIsProfileStale(unittest.TestCase):
 
     def test_missing_profile(self):
         with tempfile.TemporaryDirectory() as tmpdir:
-            fake_path = os.path.join(tmpdir, ".hody", "profile.yaml")
+            fake_path = os.path.join(tmpdir, ".coregy", "profile.yaml")
             self.assertFalse(is_profile_stale(tmpdir, fake_path))
 
 
 class TestLoadExistingIntegrations(unittest.TestCase):
     def _make_profile(self, tmpdir, content):
-        hody_dir = os.path.join(tmpdir, ".hody")
-        os.makedirs(hody_dir, exist_ok=True)
-        with open(os.path.join(hody_dir, "profile.yaml"), "w") as f:
+        coregy_dir = os.path.join(tmpdir, ".coregy")
+        os.makedirs(coregy_dir, exist_ok=True)
+        with open(os.path.join(coregy_dir, "profile.yaml"), "w") as f:
             f.write(content)
 
     def test_no_integrations(self):
@@ -166,7 +166,7 @@ class TestGraphifyHookInjection(unittest.TestCase):
         os.path.dirname(__file__),
         "..",
         "plugins",
-        "hody-workflow",
+        "coregy-workflow",
         "hooks",
         "inject_project_context.py",
     )
@@ -180,17 +180,17 @@ class TestGraphifyHookInjection(unittest.TestCase):
             capture_output=True,
             text=True,
             timeout=10,
-            env={**os.environ, "HODY_SKIP_REFRESH": "1"},
+            env={**os.environ, "COREGY_SKIP_REFRESH": "1"},
         )
         if result.stdout.strip():
             return json.loads(result.stdout)
         return {}
 
     def _setup_project(self, tmpdir):
-        """Create minimal .hody/profile.yaml."""
-        hody_dir = os.path.join(tmpdir, ".hody")
-        os.makedirs(hody_dir, exist_ok=True)
-        with open(os.path.join(hody_dir, "profile.yaml"), "w") as f:
+        """Create minimal .coregy/profile.yaml."""
+        coregy_dir = os.path.join(tmpdir, ".coregy")
+        os.makedirs(coregy_dir, exist_ok=True)
+        with open(os.path.join(coregy_dir, "profile.yaml"), "w") as f:
             f.write("project:\n  name: test-graphify\n")
 
     def test_no_graph_no_injection(self):
@@ -263,7 +263,7 @@ class TestGraphifyHookInjection(unittest.TestCase):
             msg = output.get("hookSpecificOutput", {}).get("additionalContext", "")
             self.assertNotIn("Graphify", msg)
             # Should still have profile info
-            self.assertIn("Hody Workflow", msg)
+            self.assertIn("Coregy Workflow", msg)
 
 
 if __name__ == "__main__":

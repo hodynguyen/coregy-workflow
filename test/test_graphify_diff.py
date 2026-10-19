@@ -9,7 +9,7 @@ SCRIPT_DIR = os.path.join(
     os.path.dirname(__file__),
     "..",
     "plugins",
-    "hody-workflow",
+    "coregy-workflow",
     "skills",
     "project-profile",
     "scripts",
@@ -205,8 +205,8 @@ class TestFormatSummary(unittest.TestCase):
 class TestAppendTechDebt(unittest.TestCase):
     def test_appends_when_new_gods(self):
         with tempfile.TemporaryDirectory() as tmp:
-            # Set up .hody/knowledge/tech-debt.md
-            kb_dir = os.path.join(tmp, ".hody", "knowledge")
+            # Set up .coregy/knowledge/tech-debt.md
+            kb_dir = os.path.join(tmp, ".coregy", "knowledge")
             os.makedirs(kb_dir)
             debt_path = os.path.join(kb_dir, "tech-debt.md")
             with open(debt_path, "w") as f:
@@ -232,7 +232,7 @@ class TestAppendTechDebt(unittest.TestCase):
 
     def test_no_op_when_no_new_gods(self):
         with tempfile.TemporaryDirectory() as tmp:
-            kb_dir = os.path.join(tmp, ".hody", "knowledge")
+            kb_dir = os.path.join(tmp, ".coregy", "knowledge")
             os.makedirs(kb_dir)
             debt_path = os.path.join(kb_dir, "tech-debt.md")
             with open(debt_path, "w") as f:

@@ -16,7 +16,7 @@ SCRIPTS_DIR = os.path.join(
     os.path.dirname(__file__),
     "..",
     "plugins",
-    "hody-workflow",
+    "coregy-workflow",
     "skills",
     "project-profile",
     "scripts",
@@ -47,22 +47,22 @@ class TestInitDB(unittest.TestCase):
         shutil.rmtree(self.tmpdir)
 
     def test_init_db_creates_file(self):
-        """init_db creates tracker.db inside .hody directory."""
+        """init_db creates tracker.db inside .coregy directory."""
         schema.init_db(self.tmpdir)
-        db_path = os.path.join(self.tmpdir, ".hody", "tracker.db")
+        db_path = os.path.join(self.tmpdir, ".coregy", "tracker.db")
         self.assertTrue(os.path.isfile(db_path))
 
     def test_init_db_idempotent(self):
         """Calling init_db twice does not raise an error."""
         schema.init_db(self.tmpdir)
         schema.init_db(self.tmpdir)
-        db_path = os.path.join(self.tmpdir, ".hody", "tracker.db")
+        db_path = os.path.join(self.tmpdir, ".coregy", "tracker.db")
         self.assertTrue(os.path.isfile(db_path))
 
     def test_init_db_creates_all_tables(self):
         """init_db creates all expected tables."""
         schema.init_db(self.tmpdir)
-        conn = sqlite3.connect(os.path.join(self.tmpdir, ".hody", "tracker.db"))
+        conn = sqlite3.connect(os.path.join(self.tmpdir, ".coregy", "tracker.db"))
         cursor = conn.execute(
             "SELECT name FROM sqlite_master WHERE type='table' ORDER BY name"
         )
@@ -249,7 +249,7 @@ class TestMigrateFromStateJson(unittest.TestCase):
                 },
             ],
         }
-        state_path = os.path.join(self.tmpdir, ".hody", "state.json")
+        state_path = os.path.join(self.tmpdir, ".coregy", "state.json")
         _write_file(state_path, json.dumps(state_data))
 
         result = schema.migrate_from_state_json(self.tmpdir)
@@ -273,7 +273,7 @@ class TestMigrateFromStateJson(unittest.TestCase):
             "phases": {},
             "agent_log": [],
         }
-        state_path = os.path.join(self.tmpdir, ".hody", "state.json")
+        state_path = os.path.join(self.tmpdir, ".coregy", "state.json")
         _write_file(state_path, json.dumps(state_data))
 
         result = schema.migrate_from_state_json(self.tmpdir)
@@ -302,7 +302,7 @@ class TestMigrateFromStateJson(unittest.TestCase):
                 },
             ],
         }
-        state_path = os.path.join(self.tmpdir, ".hody", "state.json")
+        state_path = os.path.join(self.tmpdir, ".coregy", "state.json")
         _write_file(state_path, json.dumps(state_data))
 
         result = schema.migrate_from_state_json(self.tmpdir)
@@ -1082,7 +1082,7 @@ class TestFormatContextForHook(unittest.TestCase):
             ],
         }
         output = awareness.format_context_for_hook(context)
-        self.assertIn("[Hody Tracker] Active:", output)
+        self.assertIn("[Coregy Tracker] Active:", output)
         self.assertIn("[HIGH]", output)
         self.assertIn("OAuth login", output)
         self.assertIn("Warnings:", output)
@@ -1110,7 +1110,7 @@ class TestFormatContextForHook(unittest.TestCase):
             "recent_completed": [{"title": "Done thing"}],
         }
         output = awareness.format_context_for_hook(context)
-        self.assertIn("[Hody Tracker] No active items", output)
+        self.assertIn("[Coregy Tracker] No active items", output)
         self.assertIn("Recent:", output)
 
 
@@ -1181,7 +1181,7 @@ class TestCheckpointSchema(unittest.TestCase):
     def test_checkpoints_table_created(self):
         """init_db creates the checkpoints table."""
         schema.init_db(self.tmpdir)
-        db = os.path.join(self.tmpdir, ".hody", "tracker.db")
+        db = os.path.join(self.tmpdir, ".coregy", "tracker.db")
         conn = sqlite3.connect(db)
         cursor = conn.execute(
             "SELECT name FROM sqlite_master WHERE type='table' AND name='checkpoints'"
@@ -1192,7 +1192,7 @@ class TestCheckpointSchema(unittest.TestCase):
     def test_checkpoints_unique_index(self):
         """Unique index on (workflow_id, agent) prevents duplicates."""
         schema.init_db(self.tmpdir)
-        db = os.path.join(self.tmpdir, ".hody", "tracker.db")
+        db = os.path.join(self.tmpdir, ".coregy", "tracker.db")
         conn = sqlite3.connect(db)
         conn.execute(
             "INSERT INTO checkpoints (id, workflow_id, agent, phase, updated_at) "
@@ -1361,7 +1361,7 @@ class TestClearCheckpoint(unittest.TestCase):
 class TestCheckpointCLI(unittest.TestCase):
     def setUp(self):
         self.tmpdir = tempfile.mkdtemp()
-        os.makedirs(os.path.join(self.tmpdir, ".hody"), exist_ok=True)
+        os.makedirs(os.path.join(self.tmpdir, ".coregy"), exist_ok=True)
         schema.init_db(self.tmpdir)
 
     def tearDown(self):

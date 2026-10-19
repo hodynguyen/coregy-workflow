@@ -10,7 +10,7 @@ SCRIPT_DIR = os.path.join(
     os.path.dirname(__file__),
     "..",
     "plugins",
-    "hody-workflow",
+    "coregy-workflow",
     "skills",
     "project-profile",
     "scripts",
@@ -18,7 +18,7 @@ SCRIPT_DIR = os.path.join(
 sys.path.insert(0, os.path.abspath(SCRIPT_DIR))
 
 # Never let the tests reach the real `claude` CLI / ~/.claude.json.
-os.environ["HODY_MCP_MODE"] = "file"
+os.environ["COREGY_MCP_MODE"] = "file"
 
 import mcp_setup
 
@@ -32,8 +32,8 @@ def _read_settings(cwd):
 
 
 def _write_profile(cwd, content):
-    os.makedirs(os.path.join(cwd, ".hody"), exist_ok=True)
-    with open(os.path.join(cwd, ".hody", "profile.yaml"), "w") as f:
+    os.makedirs(os.path.join(cwd, ".coregy"), exist_ok=True)
+    with open(os.path.join(cwd, ".coregy", "profile.yaml"), "w") as f:
         f.write(content)
 
 
@@ -169,7 +169,7 @@ class TestConfigure(unittest.TestCase):
             "jira",
             {"api-token": "tok", "site": "S", "email": "E"},
         )
-        with open(os.path.join(self.cwd, ".hody", "profile.yaml")) as f:
+        with open(os.path.join(self.cwd, ".coregy", "profile.yaml")) as f:
             content = f.read()
         self.assertIn("jira: true", content)
 
@@ -233,7 +233,7 @@ class TestRemove(unittest.TestCase):
 
     def test_flips_profile_flag(self):
         mcp_setup.remove(self.cwd, "jira")
-        with open(os.path.join(self.cwd, ".hody", "profile.yaml")) as f:
+        with open(os.path.join(self.cwd, ".coregy", "profile.yaml")) as f:
             content = f.read()
         self.assertIn("jira: false", content)
 
@@ -269,7 +269,7 @@ class TestUpdateProfile(unittest.TestCase):
         with tempfile.TemporaryDirectory() as cwd:
             _write_profile(cwd, "name: test\n")
             mcp_setup.update_profile_integration(cwd, "jira", True)
-            with open(os.path.join(cwd, ".hody", "profile.yaml")) as f:
+            with open(os.path.join(cwd, ".coregy", "profile.yaml")) as f:
                 content = f.read()
             self.assertIn("integrations:", content)
             self.assertIn("jira: true", content)
@@ -278,7 +278,7 @@ class TestUpdateProfile(unittest.TestCase):
         with tempfile.TemporaryDirectory() as cwd:
             _write_profile(cwd, "integrations:\n  github: true\n")
             mcp_setup.update_profile_integration(cwd, "jira", True)
-            with open(os.path.join(cwd, ".hody", "profile.yaml")) as f:
+            with open(os.path.join(cwd, ".coregy", "profile.yaml")) as f:
                 content = f.read()
             self.assertIn("github: true", content)
             self.assertIn("jira: true", content)
@@ -287,7 +287,7 @@ class TestUpdateProfile(unittest.TestCase):
         with tempfile.TemporaryDirectory() as cwd:
             _write_profile(cwd, "integrations:\n  jira: false\n")
             mcp_setup.update_profile_integration(cwd, "jira", True)
-            with open(os.path.join(cwd, ".hody", "profile.yaml")) as f:
+            with open(os.path.join(cwd, ".coregy", "profile.yaml")) as f:
                 content = f.read()
             self.assertIn("jira: true", content)
             self.assertNotIn("jira: false", content)

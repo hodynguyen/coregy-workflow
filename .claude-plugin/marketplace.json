@@ -1,13 +1,13 @@
 {
-  "name": "hody",
+  "name": "coregy",
   "owner": {
-    "name": "Hody",
+    "name": "Coregy",
     "email": "nguyenthanhdat23012003@gmail.com"
   },
   "plugins": [
     {
-      "name": "hody-workflow",
-      "source": "./plugins/hody-workflow"
+      "name": "coregy-workflow",
+      "source": "./plugins/coregy-workflow"
     }
   ]
 }
