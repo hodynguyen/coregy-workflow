@@ -211,6 +211,23 @@ The loop stops and asks you — in every mode, including `auto` — when a gate 
 last one. You choose: accept (issues go to `tech-debt.md`), one more round, or abort. Every
 round is written to the feature log.
 
+**Real verification:** agents do not decide for themselves that the work is done. `verify.py`
+finds the project's own commands and runs them; builders must pass before completing, testers
+and reviewers treat a failing check as a blocking issue, and the workflow runs it once more
+before it completes:
+
+```bash
+python3 .../scripts/verify.py detect          # what would run, and where it came from
+python3 .../scripts/verify.py run             # lint → typecheck → test, results in .coregy/verify-last.json
+python3 .../scripts/verify.py init            # write an editable .coregy/verify.yaml
+```
+
+Commands are resolved from `.coregy/verify.yaml` (override; `""` disables a check), then
+Makefile targets, `testing.command` in `profile.yaml`, then package.json scripts /
+pyproject / go.mod / Cargo.toml / pom.xml / Gemfile / composer.json. `run --reuse` returns the
+last result instantly when no file outside `.coregy/` changed. Checks run with `CI=1` (no
+watch mode) and a 300s timeout each.
+
 Workflow state (including execution mode and fix rounds) persists across sessions. Use `/coregy-workflow:resume` to continue.
 
 ### `/coregy-workflow:status`

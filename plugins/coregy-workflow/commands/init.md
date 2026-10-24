@@ -150,7 +150,18 @@ After the script completes, tell the user to restart Claude Code to activate the
 
 Skip this step if the user did not request `--graph` or if `graphify-out/graph.json` already exists and the user didn't explicitly ask to rebuild.
 
-9. **Show summary**: Display the detected stack and populated knowledge base
+9. **Detect verification commands**: Show which lint / typecheck / test commands agents will
+   gate on:
+
+```bash
+python3 ${CLAUDE_PLUGIN_ROOT}/skills/project-profile/scripts/verify.py detect --cwd .
+```
+
+Read-only and fast — it never runs the commands. If nothing is detected, or a command is
+wrong, tell the user `verify.py init` writes an editable `.coregy/verify.yaml`; do not run it
+for them.
+
+10. **Show summary**: Display the detected stack and populated knowledge base
 
 ## Output
 
@@ -161,6 +172,7 @@ After running, show the user:
 - Tracker database status: whether `.coregy/tracker.db` was initialized (and whether state.json was migrated)
 - Project rules: whether `.coregy/rules.yaml` was created (remind user to uncomment and customize)
 - Graphify status: whether the knowledge graph was built (if `--graph` was used)
+- Verification: the detected lint / typecheck / test commands, or that none were found
 - Suggest next steps: "Use `/coregy-workflow:start-feature` to begin a guided development workflow, or call agents directly (e.g., architect, code-reviewer, unit-tester)"
 
 ## Notes

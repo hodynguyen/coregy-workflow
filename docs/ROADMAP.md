@@ -2,7 +2,7 @@
 
 > Single source of truth for all phase tracking and future plans.
 
-**Current version**: v0.15.0
+**Current version**: v0.16.0
 
 ---
 
@@ -26,6 +26,7 @@
 | — | Runtime Wiring & Script CLIs | Complete | v0.13.0 |
 | — | Rename Hody → Coregy | Complete | v0.14.0 |
 | — | Fix Loop | Complete | v0.15.0 |
+| — | Real Verification | Complete | v0.16.0 |
 
 ---
 
@@ -635,4 +636,14 @@ custom:
 **State**: `state.json` gains `max_fix_rounds` and `fix_rounds[]` (`round, gate, phase, fixers, rerun, issues, status, escalation_reason, reopened, log_index, requested_at, closed_at`). Re-runs are tracked by `log_index` into `agent_log`, so the orchestrator's habitual `complete-agent` right after a `request-fixes` stays a no-op, and a gate cannot be completed before its fixers re-ran. `start-agent` returns the round as `fix_round`; each round and escalation is appended to the feature log.
 
 **Key files**: `skills/project-profile/scripts/state.py`, `commands/start-feature.md`, `commands/resume.md`, the 4 gate agents + `backend.md`/`frontend.md`, `test/test_fix_loop.py` (31 tests), `test/test_cli_surface.py` (`TestStateFixLoop`).
+
+### Real Verification (v0.16.0) — Complete
+
+**Goal**: The fix loop (v0.15.0) only ran when an agent *said* something was wrong. Agents now gate on the project's real lint / typecheck / test exit codes.
+
+**`verify.py`** (`coregy-cli-v1`: `detect`, `run`, `last`, `init`): resolves commands per check from `.coregy/verify.yaml` (override, empty disables) > Makefile target > `profile.yaml` `testing.command` > package.json scripts (package manager from lockfile) / pyproject (pytest, ruff, flake8, mypy; `uv run` / `poetry run`) / go.mod / Cargo.toml / Maven / Gradle / .NET / Ruby / PHP. Also checks `frontend.dir` / `backend.dir` from the profile as `test:web`-style checks. Runs lint → typecheck → test with `CI=1`, a per-check timeout (default 300s), exit 127 → `missing` (warning, not a failure). Result in `.coregy/verify-last.json` (kept out of git via `.coregy/.gitignore`) with `passed`, `verified` (something actually ran), per-check `output_tail`, and `issues[]` ready for `state.py request-fixes`. `run --reuse` returns the previous result when a fingerprint of HEAD + diff + untracked files (excluding `.coregy/`) is unchanged.
+
+**Wiring**: builders run it before completing (fix and retry up to 3 times, never report failing work as done); testers run `--only test` and route implementation bugs into the fix loop; code-reviewer / spec-verifier start from `run --reuse` and treat failed checks as blocking; start-feature / resume run a final `run --reuse` before `complete` and hand failures to the last VERIFY agent's fix loop. `/init` shows the detected commands. `request-fixes` now reopens a gate's *last* occurrence when it already completed (refactor's VERIFY code-reviewer, not the THINK assessment).
+
+**Key files**: `skills/project-profile/scripts/verify.py`, `commands/start-feature.md`, `commands/resume.md`, `commands/init.md`, 6 agent prompts, `test/test_verify.py` (49 tests), `test/test_cli_surface.py` (`TestVerifyCli`).
 

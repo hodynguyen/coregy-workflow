@@ -125,14 +125,37 @@ At bootstrap, check `.coregy/profile.yaml` for `integrations:`. If MCP tools are
 
 If no integrations are configured, work normally by reading code directly.
 
+## Verify before completing
+
+Your work is done when the project's real checks pass, not when the code looks right. Before
+`log-append` / `complete-agent`, run lint, typecheck and tests:
+
+```bash
+python3 ${CLAUDE_PLUGIN_ROOT}/skills/project-profile/scripts/verify.py run --json --cwd .
+```
+
+- `passed: false` → read each failing check's `output_tail`, fix the cause, run again. Up to
+  3 attempts. Still failing → stop, and put the remaining `issues` verbatim in your summary;
+  never describe failing work as complete.
+- A failure in code your change does not touch is pre-existing: report it, do not fix
+  unrelated code.
+- End your summary with the result, e.g. `verify: lint ok, test ok`.
+
+Give the Bash call a 600000 ms timeout — test suites can be slow; if that is still not
+enough, run the checks one at a time (`--only lint`, `--only test`). The commands come from the
+project (`.coregy/verify.yaml` override, Makefile, `profile.yaml`, then package.json /
+pyproject / go.mod / ...); `verify.py detect` shows them. `verified: false` means nothing
+actually ran (no command detected or tools not installed) — say so plainly instead of
+reporting the work as verified, and suggest `verify.py init`.
+
 ## Workflow State
 
 If `.coregy/state.json` exists, read it at bootstrap to understand the current workflow context:
 - Check which phase and agent sequence you are part of
 - **Fix round**: if `start-agent` gave you a non-null `fix_round` (or `state.json` has a
   `fix_rounds` entry with `status: open` listing you in `fixers`), this run is a fix pass.
-  Fix exactly its `issues` — no new features, no unrelated refactors — run the existing
-  tests for the touched code, and list each issue as fixed (with the change) or not
+  Fix exactly its `issues` — no new features, no unrelated refactors — run `verify.py run`
+  (see **Verify before completing**), and list each issue as fixed (with the change) or not
   fixable (with why) in your summary. The gate re-checks them after you.
 - Review `agent_log` entries from previous agents for context on work already done
 - Read the feature log (`.coregy/knowledge/<log_file>`) to see detailed work from previous agents

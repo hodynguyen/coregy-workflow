@@ -326,6 +326,22 @@ class TestMultiPhaseGate(FixLoopCase):
         self.assertIn("code-reviewer", state["phases"]["VERIFY"]["completed"])
         self.assertIsNone(get_next_agent(state))
 
+    def test_completed_gate_reopens_its_last_occurrence(self):
+        """Final verification failing after the whole workflow ran."""
+        for agent in ("code-reviewer", "backend", "unit-tester", "code-reviewer"):
+            self.run_agent(agent)
+        self.assertIsNone(get_next_agent(load_state(self.cwd)))
+
+        state, rnd = request_fixes(self.cwd, "code-reviewer", ["test failed"])
+        self.assertEqual(rnd["phase"], "VERIFY")
+        self.assertIn("code-reviewer", state["phases"]["THINK"]["completed"])
+        self.assertEqual(get_next_agent(state), ("BUILD", "backend"))
+        self.run_agent("backend")
+        self.assertEqual(get_next_agent(load_state(self.cwd)), ("VERIFY", "code-reviewer"))
+        state = self.run_agent("code-reviewer")
+        self.assertEqual(state["fix_rounds"][0]["status"], "resolved")
+        self.assertIsNone(get_next_agent(state))
+
 
 class TestParallelBuilders(FixLoopCase):
     phases = {"BUILD": ["frontend", "backend"], "VERIFY": ["code-reviewer"]}

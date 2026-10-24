@@ -482,11 +482,11 @@ def request_fixes(cwd, gate, issues, fixers=None, rerun=None, summary="",
     if not issues:
         raise ValueError("request_fixes needs at least one blocking issue")
 
-    gate_phase = _find_agent_phase(state, gate)
+    gate_phase = _gate_phase(state, gate)
     if gate_phase is None:
+        if _find_agent_phase(state, gate) == "BUILD":
+            raise ValueError(f"'{gate}' is a BUILD agent; only a later agent can request fixes")
         raise ValueError(f"Agent '{gate}' not found in any workflow phase")
-    if gate_phase == "BUILD":
-        raise ValueError(f"'{gate}' is a BUILD agent; only a later agent can request fixes")
 
     build = state["phases"].get("BUILD")
     if not build:
@@ -574,6 +574,26 @@ def request_fixes(cwd, gate, issues, fixers=None, rerun=None, summary="",
     state = _write_state(cwd, state)
     _append_fix_round_log(cwd, state.get("log_file"), rnd, limit)
     return state, rnd
+
+
+def _gate_phase(state, gate):
+    """The non-BUILD phase whose occurrence of `gate` is reporting issues.
+
+    Unlike _find_agent_phase(), a gate that already completed everywhere
+    resolves to its *last* occurrence: when the final verification fails
+    after a refactor, the VERIFY code-reviewer must reopen, not the THINK
+    assessment that runs first.
+    """
+    listed = [p for p in state["phase_order"]
+              if p != "BUILD" and gate in state["phases"][p]["agents"]]
+    for phase in listed:
+        if state["phases"][phase].get("active") == gate:
+            return phase
+    for phase in listed:
+        p = state["phases"][phase]
+        if gate not in p["completed"] and gate not in p["skipped"]:
+            return phase
+    return listed[-1] if listed else None
 
 
 def _append_fix_round_log(cwd, log_file, rnd, limit):

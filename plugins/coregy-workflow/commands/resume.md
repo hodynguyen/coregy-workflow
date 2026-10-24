@@ -171,7 +171,26 @@ d. **Run agents based on execution mode**: For the agent `next-agent` returned (
    - **`auto` or `guided`**: **Immediately** proceed to next agent — do NOT pause.
    - **`manual`**: Pause and show a review prompt. Wait for user to respond with `continue`, `skip`, or `abort`.
 
-e. **Complete workflow**: After all agents finish:
+e. **Final verification**: Before completing, run the project's real checks once more
+(`--reuse` makes this instant when nothing changed since the last gate ran them):
+
+```bash
+python3 ${CLAUDE_PLUGIN_ROOT}/skills/project-profile/scripts/verify.py run --reuse --json --cwd .
+```
+
+Give the Bash call a 600000 ms timeout.
+- `passed: true` → go on to complete. If `verified` is `false`, nothing actually ran — say so
+  in the final summary (`verify: no checks detected`) instead of reporting it as verified.
+- `passed: false` and the workflow has a VERIFY agent → hand the failures to the fix loop
+  through the **last** VERIFY agent, then go back to the agent loop:
+  ```bash
+  python3 ${CLAUDE_PLUGIN_ROOT}/skills/project-profile/scripts/state.py request-fixes <last VERIFY agent> \
+    --issue "<one entry of issues[]>" --summary "final verification failed" --cwd .
+  ```
+- `passed: false` with no VERIFY phase (`deployment`, `tech-spike`) → show the failures and
+  ask the user whether to complete anyway.
+
+f. **Complete workflow**: After the final verification passes:
 
 ```bash
 python3 ${CLAUDE_PLUGIN_ROOT}/skills/project-profile/scripts/state.py complete --cwd .

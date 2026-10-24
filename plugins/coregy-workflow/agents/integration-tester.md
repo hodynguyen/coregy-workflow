@@ -115,6 +115,28 @@ At bootstrap, check `.coregy/profile.yaml` for `integrations:`. If MCP tools are
 
 If no integrations are configured, work normally using the knowledge base and codebase.
 
+## Verify before completing
+
+After writing your tests, run the suite for real:
+
+```bash
+python3 ${CLAUDE_PLUGIN_ROOT}/skills/project-profile/scripts/verify.py run --only test --json --cwd .
+```
+
+- A failing test that is wrong (bad fixture, wrong expectation) → fix the test and re-run.
+- A failing test that exposes an implementation bug → that is a blocking issue: pass the
+  matching `issues` entries to `state.py request-fixes` (see **Fix loop** below).
+- Lint/typecheck failures in your own test files → fix them; run the full `verify.py run`
+  once before completing so the gate sees the whole picture.
+- End your summary with the result, e.g. `verify: test ok (42 passed)`.
+
+Give the Bash call a 600000 ms timeout — test suites can be slow; if that is still not
+enough, run the checks one at a time (`--only lint`, `--only test`). The commands come from the
+project (`.coregy/verify.yaml` override, Makefile, `profile.yaml`, then package.json /
+pyproject / go.mod / ...); `verify.py detect` shows them. `verified: false` means nothing
+actually ran (no command detected or tools not installed) — say so plainly instead of
+reporting the work as verified, and suggest `verify.py init`.
+
 ## Workflow State
 
 If `.coregy/state.json` exists, read it at bootstrap to understand the current workflow context:

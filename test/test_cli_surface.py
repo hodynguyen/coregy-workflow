@@ -28,7 +28,8 @@ SCRIPTS_DIR = os.path.join(
 )
 CONTRACTS_DIR = os.path.join(PLUGIN_ROOT_DIR, "agents", "contracts")
 
-# The 7 scripts wired up by R3-R9, with the subcommands each must expose.
+# The workflow CLIs (7 wired up by R3-R9, plus verify.py), with the subcommands
+# each must expose.
 CLI_SCRIPTS = {
     "state.py": [
         "init-workflow", "start-agent", "complete-agent", "skip-agent",
@@ -41,6 +42,7 @@ CLI_SCRIPTS = {
     "contracts.py": ["validate", "list"],
     "ci_monitor.py": ["status", "summary", "feedback"],
     "team.py": ["init", "show", "check-agent", "check-workflow"],
+    "verify.py": ["detect", "run", "last", "init"],
 }
 
 
@@ -552,6 +554,50 @@ class TestStateFixLoop(StateCliTestCase):
         result = self.state("request-fixes", "unit-tester", "--cwd", ".")
         self.assertEqual(result.returncode, 1)
         self.assertIn("blocking issue", result.stderr)
+
+
+class TestVerifyCli(CliTestCase):
+    def verify(self, *args):
+        return self.run_cli("verify.py", *args)
+
+    def config(self, command):
+        write(os.path.join(self.coregy, "verify.yaml"),
+              'checks:\n  test: "%s"\n' % command.replace('"', '\\"'))
+
+    def test_run_json_reports_failures_as_issues(self):
+        self.config("%s -c \"import sys; print('x.py:1 bad'); sys.exit(1)\"" % sys.executable)
+        data = self.json_out(self.verify("run", "--json", "--cwd", "."))
+        self.assertFalse(data["passed"])
+        self.assertEqual(len(data["issues"]), 1)
+        self.assertIn("x.py:1 bad", data["issues"][0])
+
+    def test_failure_exits_zero_unless_strict(self):
+        self.config("%s -c \"raise SystemExit(1)\"" % sys.executable)
+        self.assertEqual(self.verify("run", "--cwd", ".").returncode, 0)
+        result = self.verify("run", "--strict", "--cwd", ".")
+        self.assertEqual(result.returncode, 1)
+        self.assertIn("FAILED", result.stdout)
+
+    def test_last_before_any_run_exits_one(self):
+        result = self.verify("last", "--cwd", ".")
+        self.assertEqual(result.returncode, 1)
+        self.assertIn("No verification run yet", result.stderr)
+
+    def test_last_after_run(self):
+        self.config("%s -c pass" % sys.executable)
+        self.verify("run", "--cwd", ".")
+        self.assertEqual(self.json_out(self.verify("last", "--json", "--cwd", "."))
+                         ["summary"], "test ok")
+
+    def test_init_twice_needs_force(self):
+        self.assertOk(self.verify("init", "--cwd", "."))
+        self.assertEqual(self.verify("init", "--cwd", ".").returncode, 1)
+        self.assertOk(self.verify("init", "--force", "--cwd", "."))
+
+    def test_detect_json(self):
+        write(os.path.join(self.tmpdir, "go.mod"), "module x\n")
+        data = self.json_out(self.verify("detect", "--json", "--cwd", "."))
+        self.assertEqual([c["name"] for c in data["checks"]], ["lint", "test"])
 
 
 class TestStateWithoutWorkflow(StateCliTestCase):

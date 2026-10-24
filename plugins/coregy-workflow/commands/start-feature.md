@@ -294,7 +294,26 @@ python3 ${CLAUDE_PLUGIN_ROOT}/skills/project-profile/scripts/tracker.py create \
      escalated issues), then continue the loop
    - `abort` — `state.py abort --cwd .`
 
-12. **Complete workflow**: After all agents finish:
+12. **Final verification**: Before completing, run the project's real checks once more
+(`--reuse` makes this instant when nothing changed since the last gate ran them):
+
+```bash
+python3 ${CLAUDE_PLUGIN_ROOT}/skills/project-profile/scripts/verify.py run --reuse --json --cwd .
+```
+
+Give the Bash call a 600000 ms timeout.
+- `passed: true` → go on to complete. If `verified` is `false`, nothing actually ran — say so
+  in the final summary (`verify: no checks detected`) instead of reporting it as verified.
+- `passed: false` and the workflow has a VERIFY agent → hand the failures to the fix loop
+  through the **last** VERIFY agent, then go back to the agent loop:
+  ```bash
+  python3 ${CLAUDE_PLUGIN_ROOT}/skills/project-profile/scripts/state.py request-fixes <last VERIFY agent> \
+    --issue "<one entry of issues[]>" --summary "final verification failed" --cwd .
+  ```
+- `passed: false` with no VERIFY phase (`deployment`, `tech-spike`) → show the failures and
+  ask the user whether to complete anyway.
+
+13. **Complete workflow**: After the final verification passes:
 
 ```bash
 python3 ${CLAUDE_PLUGIN_ROOT}/skills/project-profile/scripts/state.py complete --cwd .
@@ -347,6 +366,7 @@ Agent Results:
   ✅ code-reviewer — [summary]
 
 Fix rounds: [n] — [gate → fixer: resolved | accepted with open issues]   (omit if none)
+Verify: [summary line from verify.py, e.g. lint ok, typecheck ok, test ok]
 
 KB Files Updated:
   → architecture.md

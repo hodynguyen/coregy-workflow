@@ -115,6 +115,26 @@ At bootstrap, check `.coregy/profile.yaml` for `integrations:`. If MCP tools are
 
 If no integrations are configured, work normally using the knowledge base and codebase.
 
+## Verify before reviewing
+
+Start from the real check results, not from reading alone. `--reuse` returns the previous
+run instantly when no file changed since (the testers usually just ran it):
+
+```bash
+python3 ${CLAUDE_PLUGIN_ROOT}/skills/project-profile/scripts/verify.py run --reuse --json --cwd .
+```
+
+Every failed check is a **blocking** issue — copy its `issues` entries into
+`state.py request-fixes` (see **Fix loop** below) alongside your own findings. Note the
+`summary` line in your report.
+
+Give the Bash call a 600000 ms timeout — test suites can be slow; if that is still not
+enough, run the checks one at a time (`--only lint`, `--only test`). The commands come from the
+project (`.coregy/verify.yaml` override, Makefile, `profile.yaml`, then package.json /
+pyproject / go.mod / ...); `verify.py detect` shows them. `verified: false` means nothing
+actually ran (no command detected or tools not installed) — say so plainly instead of
+reporting the work as verified, and suggest `verify.py init`.
+
 ## Workflow State
 
 If `.coregy/state.json` exists, read it at bootstrap to understand the current workflow context:
