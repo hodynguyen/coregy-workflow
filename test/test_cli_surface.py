@@ -32,7 +32,7 @@ CONTRACTS_DIR = os.path.join(PLUGIN_ROOT_DIR, "agents", "contracts")
 CLI_SCRIPTS = {
     "state.py": [
         "init-workflow", "start-agent", "complete-agent", "skip-agent",
-        "confirm-spec", "set-mode", "next-agent", "complete", "abort",
+        "request-fixes", "confirm-spec", "set-mode", "next-agent", "complete", "abort",
         "log-append", "show",
     ],
     "health.py": ["report"],
@@ -411,7 +411,8 @@ class TestStateAgentLifecycle(StateCliTestCase):
         self.assertEqual(text.stdout.strip(), "THINK architect")
 
         data = self.json_out(self.state("next-agent", "--json", "--cwd", "."))
-        self.assertEqual(data, {"phase": "THINK", "agent": "architect"})
+        self.assertEqual(data, {"phase": "THINK", "agent": "architect",
+                                "escalation": None})
 
     def test_next_agent_advances_as_agents_complete(self):
         self.state("start-agent", "architect", "--cwd", ".")
@@ -423,7 +424,7 @@ class TestStateAgentLifecycle(StateCliTestCase):
         for agent in ("architect", "backend", "unit-tester"):
             self.state("complete-agent", agent, "--cwd", ".")
         data = self.json_out(self.state("next-agent", "--json", "--cwd", "."))
-        self.assertEqual(data, {"phase": None, "agent": None})
+        self.assertEqual(data, {"phase": None, "agent": None, "escalation": None})
 
     def test_complete_sets_status(self):
         data = self.json_out(self.state("complete", "--cwd", "."))
@@ -493,6 +494,66 @@ class TestStateAgentLifecycle(StateCliTestCase):
         self.assertFalse(data["appended"])
 
 
+class TestStateFixLoop(StateCliTestCase):
+    """request-fixes: gate -> BUILD -> gate, escalation surfaced as JSON."""
+
+    def setUp(self):
+        CliTestCase.setUp(self)
+        self.assertOk(self.init("--max-fix-rounds", "2"))
+        for agent in ("architect", "backend"):
+            self.state("start-agent", agent, "--cwd", ".")
+            self.state("complete-agent", agent, "--summary", "ok", "--cwd", ".")
+        self.state("start-agent", "unit-tester", "--cwd", ".")
+
+    def request(self, *extra):
+        return self.json_out(self.state(
+            "request-fixes", "unit-tester", "--cwd", ".", *extra))
+
+    def test_init_records_the_limit(self):
+        self.assertEqual(self.read_state()["max_fix_rounds"], 2)
+
+    def test_fix_action_points_at_the_builder(self):
+        data = self.request("--issue", "a.py:1 x", "--issue", "a.py:2 y")
+        self.assertEqual(data["action"], "fix")
+        self.assertEqual(data["round"]["issues"], ["a.py:1 x", "a.py:2 y"])
+        self.assertEqual(data["next"], {"phase": "BUILD", "agent": "backend"})
+
+    def test_start_agent_carries_the_round(self):
+        self.request("--issue", "a.py:1 x")
+        data = self.json_out(self.state("start-agent", "backend", "--cwd", "."))
+        self.assertEqual(data["fix_round"]["issues"], ["a.py:1 x"])
+
+    def test_start_agent_fix_round_is_null_outside_a_loop(self):
+        data = self.json_out(self.state("start-agent", "architect", "--cwd", "."))
+        self.assertIsNone(data["fix_round"])
+
+    def test_escalation_reaches_next_agent_and_force_reuses_issues(self):
+        self.request("--issue", "x")
+        self.state("start-agent", "backend", "--cwd", ".")
+        self.state("complete-agent", "backend", "--cwd", ".")
+        self.state("start-agent", "unit-tester", "--cwd", ".")
+        data = self.request("--issue", "x")
+        self.assertEqual(data["action"], "escalate")
+        self.assertEqual(data["round"]["escalation_reason"], "no_progress")
+
+        nxt = self.json_out(self.state("next-agent", "--json", "--cwd", "."))
+        self.assertEqual(nxt["escalation"]["gate"], "unit-tester")
+        self.assertIn("ESCALATED", self.state("show", "--cwd", ".").stdout)
+
+        data = self.request("--force-round")
+        self.assertEqual(data["action"], "fix")
+        self.assertEqual(data["round"]["issues"], ["x"])
+
+    def test_next_agent_escalation_is_null_normally(self):
+        nxt = self.json_out(self.state("next-agent", "--json", "--cwd", "."))
+        self.assertIsNone(nxt["escalation"])
+
+    def test_missing_issue_exits_one(self):
+        result = self.state("request-fixes", "unit-tester", "--cwd", ".")
+        self.assertEqual(result.returncode, 1)
+        self.assertIn("blocking issue", result.stderr)
+
+
 class TestStateWithoutWorkflow(StateCliTestCase):
     """R-11: how "no workflow" is signalled."""
 
@@ -516,7 +577,8 @@ class TestStateWithoutWorkflow(StateCliTestCase):
     def test_next_agent_json_exits_zero(self):
         result = self.state("next-agent", "--json", "--cwd", ".")
         self.assertEqual(result.returncode, 0)
-        self.assertEqual(json.loads(result.stdout), {"phase": None, "agent": None})
+        self.assertEqual(json.loads(result.stdout),
+                         {"phase": None, "agent": None, "escalation": None})
 
     def test_mutators_exit_one_without_a_traceback(self):
         for args in (
@@ -593,7 +655,8 @@ class TestStateLegacySchema(StateCliTestCase):
 
     def test_next_agent_works(self):
         data = self.json_out(self.state("next-agent", "--json", "--cwd", "."))
-        self.assertEqual(data, {"phase": "THINK", "agent": "architect"})
+        self.assertEqual(data, {"phase": "THINK", "agent": "architect",
+                                "escalation": None})
 
     def test_start_agent_heals_the_file_on_disk(self):
         data = self.json_out(self.state("start-agent", "architect", "--cwd", "."))

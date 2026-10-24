@@ -2,7 +2,7 @@
 
 > Single source of truth for all phase tracking and future plans.
 
-**Current version**: v0.13.0
+**Current version**: v0.15.0
 
 ---
 
@@ -24,6 +24,8 @@
 | — | Auto-Track | Complete | v0.11.0 |
 | — | MCP Auto-Setup | Complete | v0.12.0 |
 | — | Runtime Wiring & Script CLIs | Complete | v0.13.0 |
+| — | Rename Hody → Coregy | Complete | v0.14.0 |
+| — | Fix Loop | Complete | v0.15.0 |
 
 ---
 
@@ -621,3 +623,16 @@ custom:
 **Migration** (`migrate.py`, `/coregy-workflow:migrate`): renames `.hody/` → `.coregy/` (tracker.db untouched), rewrites path tokens inside it, `.gitignore` entries and the `enabledPlugins` key in `.claude/settings*.json`. Refuses when both dirs exist; never deletes. The SessionStart hook runs it automatically and tells the model so the user is informed once.
 
 **Key files**: `skills/project-profile/scripts/migrate.py`, `commands/migrate.md`, `hooks/inject_project_context.py`, `test/test_migrate.py` (13 tests).
+
+### Fix Loop (v0.15.0) — Complete
+
+**Goal**: The VERIFY phase used to be a straight line — a reviewer could report blocking issues and the workflow still finished, leaving the user to relay them back by hand. Now a failing gate sends the work back to BUILD and re-checks it, without the user in the loop until it stalls.
+
+**Flow**: gate (`code-reviewer`, `spec-verifier`, `unit-tester`, `integration-tester`) finds blocking issues → `state.py request-fixes <gate> --issue ...` closes the gate's run and reopens the BUILD fixer(s), any `--rerun` agents and the gate → `next-agent` walks BUILD → gate again → gate passes (`complete-agent`, round `resolved`) or requests another round.
+
+**Stops itself** (round `escalated`, nothing reopened) when the gate has used `max_fix_rounds` (default 3, `init-workflow --max-fix-rounds`) or a round has no fewer issues than the previous one. `next-agent --json` exposes it as `escalation`; the orchestrator asks the user in every mode: accept (`complete-agent <gate>`, round `accepted`), one more round (`request-fixes --force-round`, reuses the issues), or abort.
+
+**State**: `state.json` gains `max_fix_rounds` and `fix_rounds[]` (`round, gate, phase, fixers, rerun, issues, status, escalation_reason, reopened, log_index, requested_at, closed_at`). Re-runs are tracked by `log_index` into `agent_log`, so the orchestrator's habitual `complete-agent` right after a `request-fixes` stays a no-op, and a gate cannot be completed before its fixers re-ran. `start-agent` returns the round as `fix_round`; each round and escalation is appended to the feature log.
+
+**Key files**: `skills/project-profile/scripts/state.py`, `commands/start-feature.md`, `commands/resume.md`, the 4 gate agents + `backend.md`/`frontend.md`, `test/test_fix_loop.py` (31 tests), `test/test_cli_surface.py` (`TestStateFixLoop`).
+

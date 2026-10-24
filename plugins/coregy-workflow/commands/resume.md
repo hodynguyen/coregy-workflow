@@ -142,14 +142,20 @@ python3 ${CLAUDE_PLUGIN_ROOT}/skills/project-profile/scripts/state.py next-agent
 ```
 
 until `agent` is `null`. This subcommand always exits 0, so branch on the content.
+A non-null `escalation` means a fix loop stopped and is waiting on the user: show its
+`gate`, `escalation_reason` and `issues` and offer accept / one more round / abort exactly as
+in start-feature's **Fix loop** step — in every mode — before starting any agent.
 
-d. **Run agents based on execution mode**: For each remaining agent in sequence:
+d. **Run agents based on execution mode**: For the agent `next-agent` returned (re-ask after
+   each one — a gate's `request-fixes` sends the workflow back to BUILD):
    ```bash
    python3 ${CLAUDE_PLUGIN_ROOT}/skills/project-profile/scripts/state.py start-agent <agent> --cwd .
    ```
    - A non-null `checkpoint` in that JSON means the agent was interrupted: pass its
      `partial_output`, `resume_hint` and completed/pending items so it continues rather
      than restarting. A null checkpoint means start fresh.
+   - A non-null `fix_round` means this run is part of the fix loop: pass its `gate` and
+     `issues` to the agent (a BUILD agent fixes exactly those; the gate re-checks them first).
    - Activate the agent (it reads profile.yaml + KB + spec file)
    - When the agent completes:
      ```bash

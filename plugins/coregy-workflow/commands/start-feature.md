@@ -51,7 +51,9 @@ DISCOVERY → SPEC CONFIRMATION → AUTO-EXECUTION
 
 1. **Discovery**: Ask all clarifying questions upfront, discuss trade-offs with user (**skipped in `auto` mode**)
 2. **Spec Confirmation**: Summarize everything into a clear spec, user confirms (**auto-confirmed in `auto` mode**)
-3. **Execution**: Run all agents in sequence (**pauses between agents in `manual` mode**)
+3. **Execution**: Run all agents in sequence (**pauses between agents in `manual` mode**). A
+   reviewer, verifier or tester that finds blocking issues sends the work back to the BUILD
+   agents and re-checks it — the **fix loop**, capped at `--max-fix-rounds` (default 3)
 
 ## Steps
 
@@ -195,6 +197,8 @@ Do **not** hand-write either file.
 
 - `--phases` takes a single-quoted JSON object mapping phase name to its agent list; use
   the sequence from "Agent Sequence by Feature Type" below.
+- `--max-fix-rounds <n>` (default 3) caps how often each gate may send work back to BUILD.
+  Pass it only when the user asks for a different limit.
 - Exit 1 with "Active workflow ... in progress" means a workflow is already running —
   offer `/coregy-workflow:resume` rather than passing `--force`, which destroys it.
 
@@ -219,13 +223,21 @@ python3 ${CLAUDE_PLUGIN_ROOT}/skills/project-profile/scripts/tracker.py create \
   --cwd .
 ```
 
-11. **Run agents based on execution mode**: For each agent in sequence:
+11. **Run agents based on execution mode**: Do not walk the sequence from memory — the fix
+   loop can send the workflow back to BUILD. Ask the state machine for the next agent each time:
+   ```bash
+   python3 ${CLAUDE_PLUGIN_ROOT}/skills/project-profile/scripts/state.py next-agent --json --cwd .
+   ```
+   Stop when `agent` is `null`. If `escalation` is non-null, handle it first (see **Fix loop**
+   below) — do not start the agent it names. Otherwise, for that agent:
    - Mark it active:
      ```bash
      python3 ${CLAUDE_PLUGIN_ROOT}/skills/project-profile/scripts/state.py start-agent <agent> --cwd .
      ```
      If the JSON contains a non-null `checkpoint`, pass its `partial_output`, `resume_hint`
      and items to the agent so it continues instead of restarting. Surface any `warnings`.
+     If `fix_round` is non-null, pass its `round`, `gate` and `issues` to the agent: a BUILD
+     agent fixes exactly those issues; the gate re-checks them before anything else.
    - Activate the agent (it reads profile.yaml + KB + spec file + log file)
    - When the agent completes:
      ```bash
@@ -255,6 +267,32 @@ python3 ${CLAUDE_PLUGIN_ROOT}/skills/project-profile/scripts/tracker.py create \
      `state.py skip-agent <next agent> --cwd .`; `abort` → `state.py abort --cwd .`.
 
    **Parallel agents**: During BUILD phase, if both `frontend` and `backend` are present, run them in parallel (all modes).
+
+   **Fix loop**: A gate agent (`code-reviewer`, `spec-verifier`, `unit-tester`,
+   `integration-tester`) that finds **blocking** issues records them with
+   `state.py request-fixes` instead of completing. Your follow-up `complete-agent` call for it is
+   then a harmless no-op, and `next-agent` returns the BUILD agent(s) to fix, then the gate again.
+   Show one line per round:
+   ```
+   🔁 code-reviewer → backend — fix round 1/3: 2 blocking issues
+   ```
+   This runs without pausing in `auto` and `guided` (in `manual`, the usual pause applies).
+
+   **Escalation** — the loop stops itself when a gate has used all its rounds (`max_rounds`)
+   or a round found no fewer issues than the previous one (`no_progress`). In **every** mode,
+   including `auto`, show the remaining issues and ask the user:
+   ```
+   ⚠️ Fix loop stopped — code-reviewer (no_progress): 2 blocking issues remain
+     - src/auth.py:42 token compared with ==
+     - src/auth.py:88 missing expiry check
+   → accept | one more round | abort
+   ```
+   - `accept` — continue with the issues logged:
+     `state.py complete-agent <gate> --summary "accepted with open issues" --cwd .`, and add
+     the issues to `tech-debt.md`
+   - `one more round` — `state.py request-fixes <gate> --force-round --cwd .` (reuses the
+     escalated issues), then continue the loop
+   - `abort` — `state.py abort --cwd .`
 
 12. **Complete workflow**: After all agents finish:
 
@@ -307,6 +345,8 @@ Agent Results:
   ✅ frontend    — [summary]
   ✅ unit-tester — [summary]
   ✅ code-reviewer — [summary]
+
+Fix rounds: [n] — [gate → fixer: resolved | accepted with open issues]   (omit if none)
 
 KB Files Updated:
   → architecture.md

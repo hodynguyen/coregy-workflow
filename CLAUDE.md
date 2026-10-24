@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project Overview
 
-This is the **Coregy Workflow** plugin for Claude Code — a project-aware development workflow system with 9 specialized AI agents. Current version: v0.14.0. Full documentation is in `docs/` (PROPOSAL, ARCHITECTURE, ROADMAP, USER_GUIDE).
+This is the **Coregy Workflow** plugin for Claude Code — a project-aware development workflow system with 9 specialized AI agents. Current version: v0.15.0. Full documentation is in `docs/` (PROPOSAL, ARCHITECTURE, ROADMAP, USER_GUIDE).
 
 The plugin provides:
 - Auto-detection of project tech stacks (generates `.coregy/profile.yaml`)
@@ -15,6 +15,7 @@ The plugin provides:
 - Configurable quality gate with `.coregy/quality-rules.yaml`
 - Project rules (`.coregy/rules.yaml`) — user-authored coding conventions, architecture constraints, testing requirements that all agents follow
 - Team roles & permissions via `.coregy/team.yaml`
+- Fix loop — gate agents (reviewer, verifier, testers) send blocking issues back to BUILD via `state.py request-fixes` and re-check, capped by `max_fix_rounds`; escalates to the user when it stalls
 - Workflow state machine (`.coregy/state.json`) with spec-driven development and 3 execution modes: `auto` (full auto, no interaction), `guided` (interactive discovery, auto execution), `manual` (pause between agents)
 - Interaction tracker (`tracker.py`, `.coregy/tracker.db`) with agent checkpoints for surviving context limit interruptions
 - Auto-track (`auto_track.py`, `auto_track_hook.py`) — `UserPromptSubmit` hook detects task intent in user prompts (EN + VI) and hints Claude to create a tracker item when work happens outside `/start-feature`
@@ -106,7 +107,7 @@ plugins/coregy-workflow/
 ## Testing
 
 ```bash
-# Run all tests (854 tests across 34 test files)
+# Run all tests (892 tests across 35 test files)
 python3 -m unittest discover -s test -v
 
 # Tests cover: per-language detectors, monorepo, devops, serializer, quality gate, KB sync,
@@ -146,3 +147,4 @@ python3 -m unittest discover -s test -v
 - **v0.13.0 (Runtime Wiring & Script CLIs)**: Complete — Fixed two runtime bugs: `${PLUGIN_ROOT}` -> `${CLAUDE_PLUGIN_ROOT}` across 10 commands + 9 agents (40 sites; the old variable does not exist, so every bash call in a command/agent expanded to an empty path), and the quality gate's `git commit` detector, which only matched a commit at the very start of a command and so never fired on `git add -A && git commit`. Added an argparse CLI (`coregy-cli-v1` convention: shared `--cwd` parent parser, hyphenated subcommands, `--json`, exit 0/1/2) to the 7 previously unreachable scripts -- `state.py`, `health.py`, `kb_index.py`, `kb_archive.py`, `contracts.py`, `ci_monitor.py`, `team.py` -- as a pure wrapper layer with zero library signature changes, plus a CLI-layer `_normalize_state()` that heals legacy `state.json` schemas. Rewired `/init`, `/update-kb`, `/kb-search`, `/health`, `/ci-report`, `/start-feature`, `/resume` and 5 agent contract checks from prose to real bash invocations. New `/coregy-workflow:team` command (14 -> 15). Linked the 3 orphaned output styles to their agents; removed a stray 324KB `graphify-out/` cache and guarded it in `.gitignore`.
 - **v0.13.1 (Audit Fixes)**: Complete — Full code audit. Quality gate now scans files staged by the same command (`git add -A && git commit`, `commit -a`) and the staged blob, not the working tree; warnings are surfaced. New `mini_yaml.py` fixes quality-rules parsing (default config had silently disabled debug checks and custom secret patterns); `test/` ignore paths match whole segments. SessionStart context moved from `systemMessage` (user-only) to `additionalContext`. MCP servers registered where Claude Code reads them (`claude mcp` local scope, else gitignored `.mcp.json`) with real packages (`mcp-atlassian`, Linear/GitHub remote MCP). State machine handles an agent listed in two phases (refactor flow never finished). `ci_monitor` fetches failed logs by run id. `kb_sync` git-branch push rewritten with plumbing (no checkout/stash), gist mode uses valid `gh` syntax. Tracker items link to workflows and follow their status; `note` appends; `migrate` idempotent; `show` subcommand. KB: unified `created`/`author_agent` keys, section metadata comments instead of mid-file frontmatter, archival never drops undated topical sections. Health reads real deep-analysis keys, ignores template frontmatter, workflow history persisted to `state_history.json`. Contracts scoped to the active workflow with agent handoff sections. `rules init` needs `--force`; solo projects default to `lead`; framework-less projects detected as `library`.
 - **v0.14.0 (Rename Hody → Coregy)**: Complete — Plugin renamed `hody-workflow@hody` → `coregy-workflow@coregy` (commands `/coregy-workflow:*`, data dir `.coregy/`, env vars `COREGY_*`, KB sync branch `coregy-knowledge`, repo `hodynguyen/coregy-workflow`). Legacy `HODY_*` env vars still read as a fallback. New `migrate.py` + `/coregy-workflow:migrate` (16 commands) moves `.hody/` → `.coregy/`, rewrites path tokens, `.gitignore` and the `enabledPlugins` key; refuses on conflict, never deletes. SessionStart hook auto-migrates and tells the model. 854 tests total.
+- **v0.15.0 (Fix Loop)**: Complete — VERIFY is no longer a straight line. A gate agent (`code-reviewer`, `spec-verifier`, `unit-tester`, `integration-tester`) with blocking issues calls `state.py request-fixes <gate> --issue ...`, which reopens the BUILD fixer(s) and the gate so `next-agent` walks BUILD → gate again. Escalates (nothing reopened, `next-agent --json` → `escalation`) after `max_fix_rounds` (default 3, `init-workflow --max-fix-rounds`) or when a round has no fewer issues than the last; the user accepts (`complete-agent`), forces a round (`--force-round`) or aborts — in every mode. Re-runs tracked by `log_index` into `agent_log`, so a `complete-agent` right after `request-fixes` is a no-op. `start-agent` returns `fix_round`; rounds logged to the feature log. start-feature/resume now loop on `next-agent`. 892 tests total.

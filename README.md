@@ -2,7 +2,7 @@
 
 > A project-aware development workflow plugin for Claude Code with 9 specialized AI agents.
 
-**Version**: v0.13.0 — All 6 phases complete
+**Version**: v0.15.0 — All 6 phases complete
 
 **Documentation**: [User Guide](./docs/USER_GUIDE.md) | [Architecture](./docs/ARCHITECTURE.md) | [Proposal](./docs/PROPOSAL.md) | [Roadmap](./docs/ROADMAP.md)
 
@@ -15,6 +15,7 @@
 - **Knowledge base** — 6 persistent markdown files with YAML frontmatter, `_index.json` indexing, and auto-archival
 - **9 specialized agents** across 4 groups: THINK (researcher, architect), BUILD (frontend, backend), VERIFY (code-reviewer, spec-verifier, unit-tester, integration-tester), SHIP (devops)
 - **Workflow state machine** — `.coregy/state.json` tracks feature progress across sessions with `/resume`
+- **Fix loop** — reviewers, verifiers and testers send blocking issues back to the BUILD agents and re-check, up to 3 rounds; stops and asks you when it stalls
 - **Agent contracts** — 6 typed handoff schemas for validated inter-agent communication
 - **Configurable quality gate** — `.coregy/quality-rules.yaml` with custom patterns, severity levels, debug detection
 - **CI feedback loop** — poll CI status, parse test failures, auto-create tech-debt entries

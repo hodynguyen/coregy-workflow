@@ -198,7 +198,20 @@ VERIFY: unit-tester → integration-tester → code-reviewer → spec-verifier
 SHIP:   devops
 ```
 
-Workflow state (including execution mode) persists across sessions. Use `/coregy-workflow:resume` to continue.
+**Fix loop:** when `code-reviewer`, `spec-verifier`, `unit-tester` or `integration-tester`
+finds blocking issues, it calls `state.py request-fixes` instead of completing. The BUILD agent(s)
+re-run to fix exactly those issues, then the same gate re-checks them:
+
+```
+VERIFY: code-reviewer ✗ 2 blocking → BUILD: backend (fix round 1/3) → VERIFY: code-reviewer ✓
+```
+
+The loop stops and asks you — in every mode, including `auto` — when a gate has used its rounds
+(default 3, set with `init-workflow --max-fix-rounds`) or a round found no fewer issues than the
+last one. You choose: accept (issues go to `tech-debt.md`), one more round, or abort. Every
+round is written to the feature log.
+
+Workflow state (including execution mode and fix rounds) persists across sessions. Use `/coregy-workflow:resume` to continue.
 
 ### `/coregy-workflow:status`
 
@@ -603,6 +616,7 @@ When agents hand off work to each other, contracts in `agents/contracts/` define
 9. --- close terminal, come back later ---
 10. /coregy-workflow:resume                 ← Resume from last checkpoint (agent progress preserved)
 11. VERIFY: testers + reviewers           ← Test + review (state tracked)
+    ↳ blocking issues → BUILD fixes → re-check  ← Fix loop (max 3 rounds, then asks you)
 12. git commit → quality_gate.py          ← Configurable quality check before commit
 13. SHIP: devops                          ← Deploy (optional)
 14. /coregy-workflow:ci-report              ← Generate test report for CI (optional)

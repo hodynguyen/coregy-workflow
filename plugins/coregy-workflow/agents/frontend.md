@@ -105,6 +105,11 @@ If no integrations are configured, work normally by reading code directly.
 
 If `.coregy/state.json` exists, read it at bootstrap to understand the current workflow context:
 - Check which phase and agent sequence you are part of
+- **Fix round**: if `start-agent` gave you a non-null `fix_round` (or `state.json` has a
+  `fix_rounds` entry with `status: open` listing you in `fixers`), this run is a fix pass.
+  Fix exactly its `issues` — no new features, no unrelated refactors — run the existing
+  tests for the touched code, and list each issue as fixed (with the change) or not
+  fixable (with why) in your summary. The gate re-checks them after you.
 - Review `agent_log` entries from previous agents for context on work already done
 - Read the feature log (`.coregy/knowledge/<log_file>`) to see detailed work from previous agents
 - After completing your work, record it through the state machine. Do **not** hand-edit

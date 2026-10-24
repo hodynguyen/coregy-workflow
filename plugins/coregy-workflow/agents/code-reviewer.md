@@ -161,7 +161,27 @@ If `.coregy/state.json` exists, read it at bootstrap to understand the current w
      `appended: false` in the response means the log file does not exist yet — report that
      rather than assuming the record was saved.
 
-  2. **Mark yourself complete.** This clears `active`, adds you to `completed`, fills in your
+  **Fix loop — when the work does not pass.** Blocking means any issue your Severity Classification marks blocking (bug, security
+  hole, spec or project-rule violation).
+  If you found at least one and the workflow has a BUILD phase, send it back instead of
+  completing. Skip step 2: the state machine reopens the BUILD agent(s) and runs you again
+  afterwards.
+  One `--issue` per blocking issue, with `file:line`; non-blocking findings stay in your report:
+
+  ```bash
+  python3 ${CLAUDE_PLUGIN_ROOT}/skills/project-profile/scripts/state.py request-fixes code-reviewer \
+    --issue "<file:line — problem — expected fix>" \
+    --summary "<one line: N blocking issues>" \
+    --cwd .
+  ```
+
+  `--fixer backend` (or `frontend`) limits the round to the agent that owns the code; the
+  default is every BUILD agent that ran. `"action": "escalate"` in the response means the loop
+  hit its limit or stopped making progress — report the remaining issues; the orchestrator
+  asks the user. When `start-agent` gave you a `fix_round` (you are re-checking), verify each
+  of its `issues` first and say which are fixed before reviewing anything new.
+
+  2. **Mark yourself complete.** (only when nothing blocking remains) This clears `active`, adds you to `completed`, fills in your
      `agent_log` entry and drops your checkpoint. It is idempotent, so it is safe even when
      `/coregy-workflow:start-feature` or `/coregy-workflow:resume` also calls it for you:
 

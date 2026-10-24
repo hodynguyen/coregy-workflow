@@ -17,6 +17,14 @@ VALID_MODES = ("auto", "guided", "manual")
 
 CANONICAL_PHASE_ORDER = ["THINK", "BUILD", "VERIFY", "SHIP"]
 
+# Fix loop: how many times a gate (reviewer/verifier/tester) may send the
+# work back to the BUILD agents before the loop stops and asks the user.
+DEFAULT_MAX_FIX_ROUNDS = 3
+
+# A round still waiting on agents: "open" re-runs fixers then the gate,
+# "escalated" waits on the user (accept via complete-agent, or force a round).
+_PENDING_ROUND_STATUSES = ("open", "escalated")
+
 
 def _now():
     """Return current UTC timestamp as ISO string."""
@@ -48,7 +56,8 @@ def _make_slug(text):
 
 
 def init_workflow(cwd, feature, feature_type, phases, spec_confirmed=False,
-                  spec_file=None, log_file=None, execution_mode="guided"):
+                  spec_file=None, log_file=None, execution_mode="guided",
+                  max_fix_rounds=DEFAULT_MAX_FIX_ROUNDS):
     """Create .coregy/state.json with initial workflow state.
 
     Args:
@@ -61,6 +70,7 @@ def init_workflow(cwd, feature, feature_type, phases, spec_confirmed=False,
         spec_file: KB filename for the confirmed spec (e.g. "spec-oauth2-login.md").
         log_file: KB filename for the feature log (auto-generated if None).
         execution_mode: One of "auto", "guided", "manual".
+        max_fix_rounds: Fix rounds a gate may request before escalating.
 
     Returns:
         The created state dict.
@@ -69,6 +79,8 @@ def init_workflow(cwd, feature, feature_type, phases, spec_confirmed=False,
         raise ValueError(
             f"Invalid execution_mode: {execution_mode}. Must be one of {VALID_MODES}"
         )
+    if max_fix_rounds < 1:
+        raise ValueError("max_fix_rounds must be at least 1")
     unknown = [p for p in phases if p not in CANONICAL_PHASE_ORDER]
     if unknown:
         raise ValueError(
@@ -96,6 +108,8 @@ def init_workflow(cwd, feature, feature_type, phases, spec_confirmed=False,
         "phases": {},
         "phase_order": phase_order,
         "agent_log": [],
+        "max_fix_rounds": max_fix_rounds,
+        "fix_rounds": [],
     }
 
     for phase in phase_order:
@@ -218,8 +232,53 @@ def _already_completed(state, agent_name):
     for phase in state["phase_order"]:
         if state["phases"][phase].get("active") == agent_name:
             return False
+    pending = _rerun_pending(state, agent_name)
+    if pending is not None:
+        return not pending
     entries = [e for e in state.get("agent_log", []) if e.get("agent") == agent_name]
     return bool(entries) and entries[-1].get("completed_at") is not None
+
+
+def _completed_since(state, agent_name, log_index):
+    """True when the agent finished a run logged at or after log_index."""
+    return any(
+        e.get("agent") == agent_name and e.get("completed_at") is not None
+        for e in state.get("agent_log", [])[log_index:]
+    )
+
+
+def _rerun_pending(state, agent_name):
+    """Whether a pending fix round still owes a re-run from this agent.
+
+    None when no pending round reopened the agent, so the caller falls back
+    to the normal agent_log check. Otherwise True while the re-run is due.
+    The gate of an open round is not due until every fixer has re-run: a
+    complete-agent call for it before then is the orchestrator's follow-up
+    to request-fixes and must stay a no-op.
+    """
+    for rnd in reversed(state.get("fix_rounds", [])):
+        if (rnd.get("status") not in _PENDING_ROUND_STATUSES
+                or agent_name not in rnd.get("reopened", [])):
+            continue
+        if _completed_since(state, agent_name, rnd["log_index"]):
+            return False
+        if agent_name == rnd["gate"] and rnd["status"] == "open":
+            return all(_completed_since(state, f, rnd["log_index"])
+                       for f in rnd["fixers"])
+        return True
+    return None
+
+
+def get_pending_fix_round(state, agent_name=None):
+    """Return the latest open/escalated fix round, optionally one that reopened agent_name."""
+    if state is None:
+        return None
+    for rnd in reversed(state.get("fix_rounds", [])):
+        if rnd.get("status") not in _PENDING_ROUND_STATUSES:
+            continue
+        if agent_name is None or agent_name in rnd.get("reopened", []):
+            return rnd
+    return None
 
 
 def _current_phase(state):
@@ -353,6 +412,13 @@ def complete_agent(cwd, agent_name, output_summary="", kb_files_modified=None):
             entry["kb_files_modified"] = kb_files_modified or []
             break
 
+    # A gate completing means its fix round passed (open) or the user
+    # accepted the remaining issues (escalated).
+    for rnd in state.get("fix_rounds", []):
+        if rnd.get("gate") == agent_name and rnd.get("status") in _PENDING_ROUND_STATUSES:
+            rnd["status"] = "resolved" if rnd["status"] == "open" else "accepted"
+            rnd["closed_at"] = _now()
+
     # Clear checkpoint — agent is done, no need to keep it
     _clear_checkpoint(cwd, state["workflow_id"], agent_name)
 
@@ -378,6 +444,157 @@ def skip_agent(cwd, agent_name):
         p["active"] = None
 
     return _write_state(cwd, state)
+
+
+def request_fixes(cwd, gate, issues, fixers=None, rerun=None, summary="",
+                  max_rounds=None, force=False):
+    """Send a gate's blocking issues back to the BUILD agents.
+
+    Called by a gate (code-reviewer, spec-verifier, a tester) in place of
+    complete_agent() when its run found blocking issues. Closes the gate's
+    run, then reopens the fixers, any `rerun` agents and the gate itself so
+    get_next_agent() walks BUILD -> ... -> gate again.
+
+    The loop escalates instead of reopening anything when the gate has
+    already used max_fix_rounds rounds, or when this round has no fewer
+    issues than the last one. An escalated round waits on the user: accept
+    with complete_agent(gate), or call again with force=True for one more.
+
+    Args:
+        cwd: Project root directory.
+        gate: Agent reporting the issues.
+        issues: Non-empty list of blocking issue strings.
+        fixers: BUILD agents to fix them (default: completed BUILD agents).
+        rerun: Other completed agents to re-run before the gate (e.g. a tester).
+        summary: One-line summary for the gate's agent_log entry.
+        max_rounds: New max_fix_rounds for the workflow, if given.
+        force: Skip the escalation checks for this round (user approved).
+
+    Returns:
+        (updated_state, round_dict). round_dict["status"] is "open" when the
+        work was sent back, "escalated" when the user must decide.
+    """
+    state = load_state(cwd)
+    if state is None:
+        raise FileNotFoundError("No active workflow — .coregy/state.json not found")
+
+    issues = [i.strip() for i in (issues or []) if i and i.strip()]
+    if not issues:
+        raise ValueError("request_fixes needs at least one blocking issue")
+
+    gate_phase = _find_agent_phase(state, gate)
+    if gate_phase is None:
+        raise ValueError(f"Agent '{gate}' not found in any workflow phase")
+    if gate_phase == "BUILD":
+        raise ValueError(f"'{gate}' is a BUILD agent; only a later agent can request fixes")
+
+    build = state["phases"].get("BUILD")
+    if not build:
+        raise ValueError("Workflow has no BUILD phase to send fixes to")
+    if fixers is None:
+        fixers = [a for a in build["agents"] if a in build["completed"]]
+    unknown = [a for a in fixers if a not in build["agents"]]
+    if unknown:
+        raise ValueError(f"Fixer(s) {unknown} not in the BUILD phase {build['agents']}")
+    if not fixers:
+        raise ValueError("No completed BUILD agent to send fixes to; pass fixers explicitly")
+
+    rerun = [a for a in (rerun or []) if a not in fixers and a != gate]
+    rerun_phases = {}
+    for agent in rerun:
+        done_in = [p for p in state["phase_order"]
+                   if p != "BUILD" and agent in state["phases"][p]["completed"]]
+        if not done_in:
+            raise ValueError(f"Cannot re-run '{agent}': it has not completed outside BUILD")
+        rerun_phases[agent] = done_in[-1]
+
+    if max_rounds is not None:
+        if max_rounds < 1:
+            raise ValueError("max_rounds must be at least 1")
+        state["max_fix_rounds"] = max_rounds
+    limit = state.get("max_fix_rounds", DEFAULT_MAX_FIX_ROUNDS)
+
+    # Close the gate's run: it finished, it just did not pass.
+    p = state["phases"][gate_phase]
+    if p["active"] == gate:
+        p["active"] = None
+    for entry in reversed(state["agent_log"]):
+        if entry["agent"] == gate and entry["completed_at"] is None:
+            entry["completed_at"] = _now()
+            entry["output_summary"] = (
+                summary or f"requested fixes ({len(issues)} blocking issue(s))"
+            )
+            break
+    _clear_checkpoint(cwd, state["workflow_id"], gate)
+
+    rounds = state.setdefault("fix_rounds", [])
+    executed = [r for r in rounds
+                if r["gate"] == gate and not r.get("escalation_reason")]
+    reason = None
+    if len(executed) >= limit:
+        reason = "max_rounds"
+    elif executed and len(issues) >= len(executed[-1]["issues"]):
+        reason = "no_progress"
+
+    # This round replaces any still-pending one from the same gate.
+    for r in rounds:
+        if r["gate"] == gate and r["status"] in _PENDING_ROUND_STATUSES:
+            r["status"] = "failed" if r["status"] == "open" else "superseded"
+            r["closed_at"] = _now()
+
+    rnd = {
+        "round": len(executed) + 1,
+        "gate": gate,
+        "phase": gate_phase,
+        "fixers": list(fixers),
+        "rerun": rerun,
+        "issues": issues,
+        "status": "open",
+        "escalation_reason": None,
+        "reopened": list(fixers) + rerun + [gate],
+        "requested_at": _now(),
+        "closed_at": None,
+        "log_index": len(state["agent_log"]),
+    }
+    if reason and not force:
+        rnd["status"] = "escalated"
+        rnd["escalation_reason"] = reason
+        rnd["reopened"] = [gate]
+    else:
+        for agent in fixers:
+            for key in ("completed", "skipped"):
+                if agent in build[key]:
+                    build[key].remove(agent)
+        for agent, phase in rerun_phases.items():
+            state["phases"][phase]["completed"].remove(agent)
+    if gate in p["completed"]:
+        p["completed"].remove(gate)
+    rounds.append(rnd)
+
+    state = _write_state(cwd, state)
+    _append_fix_round_log(cwd, state.get("log_file"), rnd, limit)
+    return state, rnd
+
+
+def _append_fix_round_log(cwd, log_file, rnd, limit):
+    """Record a fix round in the feature log (skipped when there is no log)."""
+    if not log_file:
+        return
+    path = _log_path(cwd, log_file)
+    if not os.path.isfile(path):
+        return
+    today = datetime.now(timezone.utc).strftime("%Y-%m-%d")
+    if rnd["status"] == "escalated":
+        lines = [f"\n### Fix loop escalated — {rnd['gate']} ({rnd['escalation_reason']}) — {today}\n",
+                 f"- {len(rnd['issues'])} blocking issue(s) remain after "
+                 f"{rnd['round'] - 1}/{limit} round(s); waiting on the user:\n"]
+    else:
+        targets = ", ".join(rnd["fixers"] + rnd["rerun"])
+        lines = [f"\n### Fix round {rnd['round']}/{limit} — {rnd['gate']} → {targets} — {today}\n",
+                 f"- {len(rnd['issues'])} blocking issue(s):\n"]
+    lines.extend(f"  - {issue}\n" for issue in rnd["issues"])
+    with open(path, "a") as f:
+        f.writelines(lines)
 
 
 def _clear_all_checkpoints(cwd, workflow_id):
@@ -823,6 +1040,20 @@ def _format_state_text(state):
 
     pct = int(round(done * 100.0 / total)) if total else 0
     lines.append("Progress: %d/%d agents (%d%%)" % (done, total, pct))
+    rounds = state.get("fix_rounds") or []
+    if rounds:
+        limit = state.get("max_fix_rounds", DEFAULT_MAX_FIX_ROUNDS)
+        executed = [r for r in rounds if not r.get("escalation_reason")]
+        lines.append("Fix rounds: %d (max %d per gate)" % (len(executed), limit))
+        pending = get_pending_fix_round(state)
+        if pending and pending["status"] == "escalated":
+            lines.append("  ESCALATED: %s (%s) -- %d issue(s) need your decision"
+                         % (pending["gate"], pending["escalation_reason"],
+                            len(pending["issues"])))
+        elif pending:
+            lines.append("  Open: round %d, %s -> %s, %d issue(s)"
+                         % (pending["round"], pending["gate"],
+                            ", ".join(pending["fixers"]), len(pending["issues"])))
     lines.append("")
     lines.extend(phase_lines)
     return "\n".join(lines)
@@ -862,6 +1093,9 @@ def _build_parser():
                         help="Do not create the feature log file")
     p_init.add_argument("--force", action="store_true",
                         help="Overwrite an in-progress workflow")
+    p_init.add_argument("--max-fix-rounds", type=int, default=DEFAULT_MAX_FIX_ROUNDS,
+                        help="Fix rounds a gate may request before escalating "
+                             "(default: %d)" % DEFAULT_MAX_FIX_ROUNDS)
 
     p_start = sub.add_parser("start-agent", parents=[parent],
                              help="Mark an agent active and load its checkpoint")
@@ -875,6 +1109,22 @@ def _build_parser():
 
     p_skip = sub.add_parser("skip-agent", parents=[parent], help="Mark an agent skipped")
     p_skip.add_argument("agent", help="Agent name")
+
+    p_fix = sub.add_parser("request-fixes", parents=[parent],
+                           help="Gate found blocking issues: send them back to BUILD")
+    p_fix.add_argument("gate", help="Agent reporting the issues (e.g. code-reviewer)")
+    p_fix.add_argument("--issue", action="append", default=None,
+                       help="Blocking issue, ideally with file:line (repeatable)")
+    p_fix.add_argument("--fixer", default="",
+                       help="Comma-separated BUILD agents to fix (default: all completed)")
+    p_fix.add_argument("--rerun", default="",
+                       help="Comma-separated completed agents to re-run before the gate")
+    p_fix.add_argument("--summary", default="", help="One-line summary of the gate's run")
+    p_fix.add_argument("--max-fix-rounds", type=int, default=None,
+                       help="Change the workflow's fix-round limit")
+    p_fix.add_argument("--force-round", action="store_true",
+                       help="User approved one more round past an escalation; "
+                            "reuses the escalated issues when no --issue is given")
 
     p_confirm = sub.add_parser("confirm-spec", parents=[parent],
                                help="Mark the spec confirmed")
@@ -940,6 +1190,7 @@ def _dispatch(args, cwd, json_mode):
             spec_file=args.spec_file,
             log_file=args.log_file,
             execution_mode=args.mode,
+            max_fix_rounds=args.max_fix_rounds,
         )
         if not args.no_log:
             create_feature_log(cwd, args.feature, args.feature_type,
@@ -962,6 +1213,9 @@ def _dispatch(args, cwd, json_mode):
             "phase": phase,
             "warnings": warnings,
             "checkpoint": checkpoint,
+            # Non-null when this run is part of a fix round: a fixer must fix
+            # exactly these issues, the gate must re-check them first.
+            "fix_round": get_pending_fix_round(updated_state, args.agent),
             "state": updated_state,
         })
 
@@ -975,6 +1229,32 @@ def _dispatch(args, cwd, json_mode):
         _cli_load_and_repair(cwd)
         _output(skip_agent(cwd, args.agent))
 
+    elif cmd == "request-fixes":
+        state = _cli_load_and_repair(cwd)
+        issues = args.issue or []
+        if not issues and args.force_round:
+            escalated = get_pending_fix_round(state, args.gate)
+            if escalated and escalated.get("status") == "escalated":
+                issues = escalated["issues"]
+        fixers = _csv(args.fixer) or None
+        state, rnd = request_fixes(
+            cwd, args.gate, issues,
+            fixers=fixers,
+            rerun=_csv(args.rerun),
+            summary=args.summary,
+            max_rounds=args.max_fix_rounds,
+            force=args.force_round,
+        )
+        nxt = get_next_agent(state)
+        # Always exits 0 on a recorded round -- callers branch on `action`.
+        _output({
+            "ok": True,
+            "action": "escalate" if rnd["status"] == "escalated" else "fix",
+            "round": rnd,
+            "max_fix_rounds": state.get("max_fix_rounds", DEFAULT_MAX_FIX_ROUNDS),
+            "next": None if nxt is None else {"phase": nxt[0], "agent": nxt[1]},
+        })
+
     elif cmd == "confirm-spec":
         _cli_load_and_repair(cwd)
         _output(confirm_spec(cwd, args.spec_file))
@@ -985,12 +1265,17 @@ def _dispatch(args, cwd, json_mode):
 
     elif cmd == "next-agent":
         # Always exits 0 -- callers branch on the content, not the status.
-        result = get_next_agent(_cli_load_readonly(cwd))
+        state = _cli_load_readonly(cwd)
+        result = get_next_agent(state)
         if args.json_mode:
-            if result is None:
-                _output({"phase": None, "agent": None})
-            else:
-                _output({"phase": result[0], "agent": result[1]})
+            out = ({"phase": None, "agent": None} if result is None
+                   else {"phase": result[0], "agent": result[1]})
+            # An escalated fix loop must go to the user, not straight back
+            # into the gate that is listed as the next agent.
+            pending = get_pending_fix_round(state)
+            out["escalation"] = (pending if pending and pending["status"] == "escalated"
+                                 else None)
+            _output(out)
         else:
             print("none" if result is None else "%s %s" % result)
 
