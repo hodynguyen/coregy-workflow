@@ -144,7 +144,19 @@ Graphify: 1392 nodes, 1582 edges (no previous snapshot to diff against yet)
 
 Skip this section entirely if `graph.json` does not exist.
 
-8. **Suggest next steps**: Based on the current state, suggest what the user could do next:
+8. **Token usage**: If `.coregy/metering.json` exists, show what the agents spent — the
+current workflow if there is one, otherwise everything recorded:
+
+```bash
+python3 ${CLAUDE_PLUGIN_ROOT}/skills/project-profile/scripts/metering.py report --brief --cwd .
+python3 ${CLAUDE_PLUGIN_ROOT}/skills/project-profile/scripts/metering.py report --brief --workflow all --cwd .
+```
+
+Show the first line when it has runs, else the second. Point to
+`metering.py report --by agent|phase|workflow|model` for the full table. Skip the section
+if the file does not exist.
+
+9. **Suggest next steps**: Based on the current state, suggest what the user could do next:
 
 - If knowledge base files are empty → suggest using the architect agent to fill them
 - If no tests exist → suggest using unit-tester or integration-tester

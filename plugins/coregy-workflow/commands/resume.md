@@ -202,7 +202,16 @@ f. **Complete workflow**: After the final verification passes:
 python3 ${CLAUDE_PLUGIN_ROOT}/skills/project-profile/scripts/state.py complete --cwd .
 ```
 
-Then show the final summary.
+Then get the workflow's token usage and show the final summary:
+
+```bash
+python3 ${CLAUDE_PLUGIN_ROOT}/skills/project-profile/scripts/metering.py collect --cwd .
+python3 ${CLAUDE_PLUGIN_ROOT}/skills/project-profile/scripts/metering.py report --brief --cwd .
+```
+
+`collect` picks up any agent run the SubagentStop hook missed; `report --brief` gives the
+`Tokens:` line of the final summary (fresh tokens per agent, cache reads, fix-round share,
+and a cost when `.coregy/metering.yaml` has prices). Skip the line if it says no runs.
 
 ### If all agents already completed
 
@@ -246,6 +255,9 @@ Agent Results:
   ✅ backend     — [summary]
   ✅ unit-tester — [summary]
   ✅ code-reviewer — [summary]
+
+Verify: [summary line from verify.py]
+Tokens: [line from metering.py report --brief]   (omit if no runs recorded)
 
 KB Files Updated:
   → architecture.md

@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project Overview
 
-This is the **Coregy Workflow** plugin for Claude Code — a project-aware development workflow system with 9 specialized AI agents. Current version: v0.18.0. Full documentation is in `docs/` (PROPOSAL, ARCHITECTURE, ROADMAP, USER_GUIDE).
+This is the **Coregy Workflow** plugin for Claude Code — a project-aware development workflow system with 9 specialized AI agents. Current version: v0.19.0. Full documentation is in `docs/` (PROPOSAL, ARCHITECTURE, ROADMAP, USER_GUIDE).
 
 The plugin provides:
 - Auto-detection of project tech stacks (generates `.coregy/profile.yaml`)
@@ -21,6 +21,7 @@ The plugin provides:
 - Workflow state machine (`.coregy/state.json`) with spec-driven development and 3 execution modes: `auto` (full auto, no interaction), `guided` (interactive discovery, auto execution), `manual` (pause between agents)
 - Interaction tracker (`tracker.py`, `.coregy/tracker.db`) with agent checkpoints for surviving context limit interruptions
 - Auto-track (`auto_track.py`, `auto_track_hook.py`) — `UserPromptSubmit` hook detects task intent in user prompts (EN + VI) and silently tracks work outside `/start-feature`: new task → `auto` item in progress, continuation → note on the active item (`COREGY_AUTO_TRACK=ask|0` for the old hint / off)
+- Token metering (`metering.py`, `metering_hook.py`) — `SubagentStop` hook sums each subagent's API usage from its transcript into `.coregy/metering.json`, bound to workflow / phase / fix round; `metering.py report` shows fresh vs cache-read tokens per agent / phase / model, optional cost from `.coregy/metering.yaml` prices
 - Graphify knowledge graph integration — AST-based code graph via MCP server, used by all 9 agents
 - Structured KB with YAML frontmatter, `_index.json` indexing, and auto-archival
 - `$ARGUMENTS` support in all commands for inline parameters
@@ -51,6 +52,7 @@ plugins/coregy-workflow/
 │   │   │   ├── detect_stack.py    # Thin CLI wrapper (backward-compatible)
 │   │   │   ├── state.py           # Workflow state machine (.coregy/state.json) + CLI
 │   │   │   ├── verify.py          # Lint/typecheck/test runner (.coregy/verify-last.json) + CLI
+│   │   │   ├── metering.py        # Per-agent token usage from subagent transcripts (.coregy/metering.json) + CLI
 │   │   │   ├── tracker.py         # SQLite interaction tracker + agent checkpoints
 │   │   │   ├── tracker_schema.py  # Tracker DB schema definitions
 │   │   │   ├── tracker_awareness.py # Tracker context injection
@@ -93,10 +95,11 @@ plugins/coregy-workflow/
 │   │   └── SKILL.md
 │   └── knowledge-base/templates/  # 6 KB template files
 ├── hooks/
-│   ├── hooks.json                 # SessionStart + PreToolUse + UserPromptSubmit hook registration
+│   ├── hooks.json                 # SessionStart + PreToolUse + UserPromptSubmit + SubagentStop hook registration
 │   ├── inject_project_context.py  # Reads profile + workflow state + rules, injects into system message
 │   ├── quality_gate.py            # Pre-commit quality gate (v2: configurable rules)
-│   └── auto_track_hook.py         # UserPromptSubmit: detects task intent and hints tracker creation
+│   ├── auto_track_hook.py         # UserPromptSubmit: detects task intent and tracks it silently
+│   └── metering_hook.py           # SubagentStop: records the finished subagent's token usage
 └── commands/                      # 16 commands: init, start-feature, status, refresh, kb-search, connect, ci-report, sync, update-kb, resume, health, track, history, rules, team, migrate
 ```
 
@@ -110,15 +113,15 @@ plugins/coregy-workflow/
 ## Testing
 
 ```bash
-# Run all tests (998 tests across 38 test files)
+# Run all tests (1038 tests across 39 test files)
 python3 -m unittest discover -s test -v
 
 # Tests cover: per-language detectors, monorepo, devops, serializer, quality gate, KB sync,
 # auto-refresh, workflow state, KB index/archive, deep analysis, contracts, quality rules,
 # CI monitor, team roles, health dashboard, tracker, graphify (setup/diff/kb-populate), rules,
-# auto-track (intent detection), git-commit detection, and the runtime CLI surface
+# auto-track (intent detection), token metering, git-commit detection, and the runtime CLI surface
 # Uses mock project structures (temp directories) to verify profile.yaml output correctness.
-# test_cli_surface.py drives all 8 workflow CLIs as real subprocesses (sys.executable) --
+# test_cli_surface.py drives all 9 workflow CLIs as real subprocesses (sys.executable) --
 # importing the library functions cannot catch a missing __main__ or a bad argparse dest,
 # which is how the ${PLUGIN_ROOT} and quality-gate bugs survived 12 versions.
 ```
@@ -154,3 +157,4 @@ python3 -m unittest discover -s test -v
 - **v0.16.0 (Real Verification)**: Complete — New `verify.py` (`detect`/`run`/`last`/`init`) resolves lint / typecheck / test commands from `.coregy/verify.yaml` > Makefile > `profile.yaml` `testing.command` > package.json / pyproject / go.mod / Cargo.toml / Maven / Gradle / .NET / Ruby / PHP (plus profile `frontend.dir`/`backend.dir`), runs them with `CI=1` and per-check timeouts, writes `.coregy/verify-last.json` (self-gitignored) with `passed`, `verified`, output tails and fix-loop-ready `issues[]`. `run --reuse` skips when the git fingerprint (excluding `.coregy/`) is unchanged. Builders must pass before completing; testers and reviewers turn failures into `request-fixes`; start-feature/resume run a final check before `complete`; `/init` shows detected commands. `request-fixes` on an already-completed gate reopens its last occurrence. 948 tests total.
 - **v0.17.0 (Quick Track)**: Complete — Track (`full`/`quick`) is separate from mode. `/start-feature --quick` skips discovery in every mode, writes a compact spec, runs `BUILD: [builder] → VERIFY: [code-reviewer]` (tech-spike → researcher) with `--max-fix-rounds 2`; small changes get quick suggested (auto takes it, guided asks, manual never; `--full` opts out). `init-workflow --quick` stores `quick: true`, shown by `show` and the SessionStart hook; backend/frontend/code-reviewer/researcher read it to keep bootstrap light (relevant KB only, no contracts/checkpoints), builders add regression tests, reviewer reports blockers + ≤3 notes. Outgrowing quick → abort and restart `--full`. 960 tests total.
 - **v0.18.0 (Silent Auto-Track)**: Complete — The auto-track hook no longer asks Claude to ask the user. It creates the tracker item itself (tags `auto` + subtype, straight to `in_progress`, active pointer in self-gitignored `.coregy/auto_track.json`), and notes continuations (`làm tiếp`, `tiếp tục`, `continue`, `go ahead`, compound-aware `tiếp`, within 6h) or repeated titles on the active item instead of duplicating it. `clean_title` strips VI/EN filler and cuts at clause breaks. Claude gets a short note with the item id and the close / drop commands, plus any still-open previous item. `COREGY_AUTO_TRACK=ask` keeps the old hint, `0` disables. 998 tests total.
+- **v0.19.0 (Token Metering)**: Complete — New `metering.py` (`collect`/`report`/`record`/`clear`) and `SubagentStop` hook (`metering_hook.py`, `COREGY_METERING=0` disables). Token usage comes from each subagent's own transcript (`<session>/subagents/agent-<id>.jsonl` + `.meta.json`), streamed lines de-duplicated by message id; the Agent tool result is not used since background agents report no usage. Runs land in self-gitignored `.coregy/metering.json`, bound to the workflow `agent_log` entry (current or archived workflow, by start time) with phase and fix round; ad-hoc runs keep the auto-track item. `report --by agent|phase|workflow|model [--brief] [--json]` shows fresh (input + cache writes + output) vs cache reads, tool uses, time and the fix-round share; optional `prices:` in `.coregy/metering.yaml` adds cost (none shipped). start-feature/resume final summaries and `/status` show a `Tokens:` line. 1038 tests total.

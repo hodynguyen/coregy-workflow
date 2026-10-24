@@ -28,7 +28,7 @@ SCRIPTS_DIR = os.path.join(
 )
 CONTRACTS_DIR = os.path.join(PLUGIN_ROOT_DIR, "agents", "contracts")
 
-# The workflow CLIs (7 wired up by R3-R9, plus verify.py), with the subcommands
+# The workflow CLIs (7 wired up by R3-R9, plus verify.py and metering.py), with the subcommands
 # each must expose.
 CLI_SCRIPTS = {
     "state.py": [
@@ -43,6 +43,7 @@ CLI_SCRIPTS = {
     "ci_monitor.py": ["status", "summary", "feedback"],
     "team.py": ["init", "show", "check-agent", "check-workflow"],
     "verify.py": ["detect", "run", "last", "init"],
+    "metering.py": ["collect", "report", "record", "clear"],
 }
 
 

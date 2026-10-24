@@ -33,6 +33,17 @@
           }
         ]
       }
+    ],
+    "SubagentStop": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "${CLAUDE_PLUGIN_ROOT}/hooks/metering_hook.py",
+            "timeout": 30
+          }
+        ]
+      }
     ]
   }
 }

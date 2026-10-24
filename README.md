@@ -2,7 +2,7 @@
 
 > A project-aware development workflow plugin for Claude Code with 9 specialized AI agents.
 
-**Version**: v0.18.0 — All 6 phases complete
+**Version**: v0.19.0 — All 6 phases complete
 
 **Documentation**: [User Guide](./docs/USER_GUIDE.md) | [Architecture](./docs/ARCHITECTURE.md) | [Proposal](./docs/PROPOSAL.md) | [Roadmap](./docs/ROADMAP.md)
 

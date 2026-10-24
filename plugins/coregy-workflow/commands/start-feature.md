@@ -374,6 +374,15 @@ python3 ${CLAUDE_PLUGIN_ROOT}/skills/project-profile/scripts/state.py complete -
 This finalizes the feature log (appends the Summary section and flips the frontmatter to
 `status: completed`), sets the workflow status and completes the linked tracker item in
 one call. Then:
+   - Get the token usage of the workflow's agents:
+```bash
+python3 ${CLAUDE_PLUGIN_ROOT}/skills/project-profile/scripts/metering.py collect --cwd .
+python3 ${CLAUDE_PLUGIN_ROOT}/skills/project-profile/scripts/metering.py report --brief --cwd .
+```
+
+`collect` picks up any agent run the SubagentStop hook missed; `report --brief` gives the
+`Tokens:` line of the final summary (fresh tokens per agent, cache reads, fix-round share,
+and a cost when `.coregy/metering.yaml` has prices). Skip the line if it says no runs.
    - Show a final summary of all agent outputs
    - Update the spec file status to `implemented`
 
@@ -439,6 +448,7 @@ Agent Results:
 
 Fix rounds: [n] — [gate → fixer: resolved | accepted with open issues]   (omit if none)
 Verify: [summary line from verify.py, e.g. lint ok, typecheck ok, test ok]
+Tokens: [line from metering.py report --brief]   (omit if no runs recorded)
 
 KB Files Updated:
   → architecture.md

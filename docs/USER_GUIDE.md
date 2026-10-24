@@ -452,6 +452,44 @@ unset COREGY_AUTO_TRACK         # default: silent tracking
 
 Auto-created items are tagged `auto`: `tracker.py search --tags auto --cwd .` lists them.
 
+### Token Metering (v0.19.0)
+
+Every subagent's token usage is recorded when it finishes (`SubagentStop` hook) into `.coregy/metering.json` (gitignored), read from the agent's own transcript — exact API numbers, not estimates. Each run is tied to its workflow, phase and fix round.
+
+```bash
+S=${CLAUDE_PLUGIN_ROOT}/skills/project-profile/scripts
+python3 $S/metering.py report --cwd .                    # current workflow, per agent
+python3 $S/metering.py report --workflow all --by model --cwd .
+python3 $S/metering.py report --brief --cwd .            # one line
+python3 $S/metering.py collect --cwd .                   # backfill runs the hook missed
+```
+
+```
+agent         runs    fresh    input  cache-w   output  cache-r    total  tools     time
+code-reviewer    1     180k      158     149k      31k     9.5M     9.7M     95    8m45s
+frontend         1     179k      118     156k      23k     6.9M     7.1M     65   10m47s
+backend          2     133k       85     110k      23k     3.0M     3.1M     40    6m50s
+Fix rounds: 25k fresh tokens (5% of fresh)
+```
+
+Compare agents by **fresh** (input + cache writes + output). Cache reads are the agent's context re-read on every turn: they dominate `total` but are billed at about a tenth of the input price.
+
+For a cost column, add prices (USD per million tokens, matched by model-name prefix) — none ship by default:
+
+```yaml
+# .coregy/metering.yaml
+prices:
+  claude-opus:
+    input: 5
+    output: 25
+  claude-sonnet:
+    input: 3
+    output: 15
+    # cache_write / cache_read default to 1.25x / 0.1x input
+```
+
+The final summary of `/start-feature` and `/resume` and `/status` show the `Tokens:` line. `COREGY_METERING=0` disables recording.
+
 ---
 
 ## Graphify Knowledge Graph

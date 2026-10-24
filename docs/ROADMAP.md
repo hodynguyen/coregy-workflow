@@ -2,7 +2,7 @@
 
 > Single source of truth for all phase tracking and future plans.
 
-**Current version**: v0.18.0
+**Current version**: v0.19.0
 
 ---
 
@@ -29,6 +29,7 @@
 | — | Real Verification | Complete | v0.16.0 |
 | — | Quick Track | Complete | v0.17.0 |
 | — | Silent Auto-Track | Complete | v0.18.0 |
+| — | Per-Agent Token Metering | Complete | v0.19.0 |
 
 ---
 
@@ -668,4 +669,16 @@ custom:
 **Modes**: `COREGY_AUTO_TRACK` unset/`silent` (default), `ask` (legacy hint, writes nothing), `0`/`off`.
 
 **Key files**: `skills/project-profile/scripts/auto_track.py` (`is_continuation`, `clean_title`, `track_prompt`, `build_tracking_note`), `hooks/auto_track_hook.py`, `test/test_auto_track_silent.py` (38 tests).
+
+### Per-Agent Token Metering (v0.19.0) — Complete
+
+**Goal**: There was no way to see what a workflow cost or which agent spent it, so neither the quick track nor the fix loop could be judged on cost.
+
+**Source**: Claude Code writes each subagent's conversation to `~/.claude/projects/<project>/<session>/subagents/agent-<id>.jsonl` with an `agent-<id>.meta.json` naming the agent type. `metering.py` sums the API `usage` of every assistant message (streamed lines de-duplicated by message id, largest output count wins) — exact numbers, no estimate. The Agent tool result is not used: a background agent's result has no usage at all.
+
+**Recording**: a new `SubagentStop` hook (`metering_hook.py`, `COREGY_METERING=0` disables) records each agent as it finishes into `.coregy/metering.json` (self-gitignored), keyed by agent id. Each run is bound to the workflow `agent_log` entry it belongs to — the last entry for that agent that started before the transcript did, in the current or an archived workflow — giving `workflow_id`, `phase`, `log_index` and `fix_round` (a re-run after `request-fixes`). Runs outside a workflow keep the active auto-track item id. A resumed agent refreshes its numbers but keeps its binding. `collect` sweeps the project's transcript dir for runs the hook missed; both paths are idempotent.
+
+**Report**: `report [--workflow current|all|<id>] [--by agent|phase|workflow|model] [--brief] [--json]`. Columns: fresh (input + cache writes + output — the column to compare by, since cache reads are most of every turn's context and billed at ~0.1x), input, cache writes, output, cache reads, total, tool uses, wall time; plus the fix-round share. An optional `prices:` table in `.coregy/metering.yaml` (USD per MTok by model prefix, longest prefix wins, cache write/read default to 1.25x / 0.1x input) adds a cost column; no prices ship, since a stale table would mislead. start-feature / resume add a `Tokens:` line to the final summary, `/status` shows it too.
+
+**Key files**: `skills/project-profile/scripts/metering.py`, `hooks/metering_hook.py`, `hooks/hooks.json`, `commands/start-feature.md`, `commands/resume.md`, `commands/status.md`, `test/test_metering.py` (40 tests).
 
