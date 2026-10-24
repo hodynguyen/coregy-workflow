@@ -403,7 +403,7 @@ The tracker system (`.coregy/tracker.db`) provides:
 
 The tracker database is local-only and should be gitignored. It's automatically created by `/init`.
 
-### Auto-Track (v0.11.0)
+### Auto-Track (v0.11.0, silent since v0.18.0)
 
 `/start-feature` already creates a tracker item for each formal workflow, but most ad-hoc work (quick fixes, small refactors, conversations that turn into tasks) used to slip through. The auto-track hook closes that gap.
 
@@ -411,8 +411,13 @@ The tracker database is local-only and should be gitignored. It's automatically 
 
 1. Every user prompt passes through a `UserPromptSubmit` hook (`auto_track_hook.py`).
 2. The heuristic detector (`auto_track.py`) classifies the prompt as task / bug-fix / investigation, or skips it.
-3. If detected with confidence ≥ medium, the hook injects a one-line hint asking Claude to confirm with you and create a tracker item.
-4. The hook never auto-creates items, never blocks input, and stays silent on questions, slash commands, and active workflows.
+3. If detected with confidence ≥ medium, the hook **records it itself** — you are never asked:
+   - a new task → a new tracker item tagged `auto` (plus `feature` / `bug-fix`), moved straight to `in_progress`, and made the *active* item (`.coregy/auto_track.json`, gitignored);
+   - a continuation of the active item (`làm tiếp`, `tiếp tục`, `ok tiếp đi`, `continue`, `go ahead`, … within 6 hours), or the same title again → a timestamped note on that item instead of a new one.
+4. Claude gets one line of context: which item it is, the command to close it when the work is done (`completed` / `concluded`), and — if the detector got it wrong — how to drop it (`abandoned`) or open a different one. If a new task replaced an item that is still open, the note mentions it so Claude can close it.
+5. The hook never blocks input, and stays silent on questions, slash commands, and active workflows (`/start-feature` tracks those).
+
+`tiếp` only counts as a continuation after a verb or `ok`, or at the start — `tiếp nhận`, `trực tiếp` and similar compounds do not.
 
 **Detection rules** (skip → no hint):
 
@@ -437,11 +442,15 @@ The tracker database is local-only and should be gitignored. It's automatically 
 - `investigation` → prompt mentions `investigate`, `explore`, `research`, `tìm hiểu`, ...
 - `feature` → default
 
-**Disable globally** with `COREGY_AUTO_TRACK=0`:
+**Modes** via `COREGY_AUTO_TRACK`:
 
 ```bash
-export COREGY_AUTO_TRACK=0    # silence the hint for the current shell
+export COREGY_AUTO_TRACK=0      # off
+export COREGY_AUTO_TRACK=ask    # pre-v0.18 behaviour: Claude asks you before tracking
+unset COREGY_AUTO_TRACK         # default: silent tracking
 ```
+
+Auto-created items are tagged `auto`: `tracker.py search --tags auto --cwd .` lists them.
 
 ---
 

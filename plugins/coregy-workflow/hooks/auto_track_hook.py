@@ -1,7 +1,15 @@
 #!/usr/bin/env python3
 """
-UserPromptSubmit hook: detects task intent in user prompts and injects
-a hint asking Claude to consider creating a tracker item.
+UserPromptSubmit hook: detects task intent in user prompts and tracks it.
+
+Default (silent): records the work in the tracker itself -- a new item for a
+new task, a note on the active item for a continuation -- and tells Claude
+which item it is and how to close it. The user is never asked.
+
+COREGY_AUTO_TRACK:
+  - unset / "1" / "silent": silent tracking (default)
+  - "ask": legacy behaviour -- hint Claude to ask the user before tracking
+  - "0" / "off": disabled
 
 Skipped automatically when:
   - COREGY_AUTO_TRACK=0 env var is set
@@ -17,15 +25,22 @@ import os
 import sys
 
 
-def load_intent_detector(plugin_root):
-    """Import detect_intent from the auto_track script."""
-    scripts_dir = os.path.join(
-        plugin_root, "skills", "project-profile", "scripts"
-    )
+def _scripts_dir(plugin_root):
+    return os.path.join(plugin_root, "skills", "project-profile", "scripts")
+
+
+def load_auto_track(plugin_root):
+    """Import the auto_track module from the plugin's scripts dir."""
+    scripts_dir = _scripts_dir(plugin_root)
     if scripts_dir not in sys.path:
         sys.path.insert(0, scripts_dir)
-    from auto_track import detect_intent
-    return detect_intent
+    import auto_track
+    return auto_track
+
+
+def load_intent_detector(plugin_root):
+    """Import detect_intent from the auto_track script."""
+    return load_auto_track(plugin_root).detect_intent
 
 
 def has_active_workflow(state_path):
@@ -40,8 +55,16 @@ def has_active_workflow(state_path):
         return False
 
 
+def tracking_mode():
+    raw = (os.environ.get("COREGY_AUTO_TRACK")
+           or os.environ.get("HODY_AUTO_TRACK") or "silent").strip().lower()
+    if raw in ("0", "off", "false", "no"):
+        return "off"
+    return "ask" if raw == "ask" else "silent"
+
+
 def build_hint(result):
-    """Format the additionalContext hint for Claude."""
+    """Format the legacy (COREGY_AUTO_TRACK=ask) hint for Claude."""
     return (
         f"[Coregy Auto-track] Detected possible task intent in user prompt "
         f"({result['type']}/{result.get('subtype', 'general')}, "
@@ -57,7 +80,8 @@ def build_hint(result):
 
 def main():
     try:
-        if (os.environ.get("COREGY_AUTO_TRACK") or os.environ.get("HODY_AUTO_TRACK")) == "0":
+        mode = tracking_mode()
+        if mode == "off":
             sys.exit(0)
 
         input_data = json.load(sys.stdin)
@@ -73,16 +97,24 @@ def main():
 
         hook_dir = os.path.dirname(os.path.abspath(__file__))
         plugin_root = os.path.dirname(hook_dir)
-        detect_intent = load_intent_detector(plugin_root)
+        auto_track = load_auto_track(plugin_root)
 
-        result = detect_intent(prompt)
+        result = auto_track.detect_intent(prompt)
         if not result or result.get("confidence") == "low":
             sys.exit(0)
+
+        if mode == "ask":
+            context = build_hint(result)
+        else:
+            outcome = auto_track.track_prompt(cwd, prompt, result)
+            tracker_cmd = "python3 %s" % os.path.join(
+                _scripts_dir(plugin_root), "tracker.py")
+            context = auto_track.build_tracking_note(outcome, tracker_cmd)
 
         output = {
             "hookSpecificOutput": {
                 "hookEventName": "UserPromptSubmit",
-                "additionalContext": build_hint(result),
+                "additionalContext": context,
             }
         }
         print(json.dumps(output))

@@ -2,7 +2,7 @@
 
 > Single source of truth for all phase tracking and future plans.
 
-**Current version**: v0.17.0
+**Current version**: v0.18.0
 
 ---
 
@@ -28,6 +28,7 @@
 | — | Fix Loop | Complete | v0.15.0 |
 | — | Real Verification | Complete | v0.16.0 |
 | — | Quick Track | Complete | v0.17.0 |
+| — | Silent Auto-Track | Complete | v0.18.0 |
 
 ---
 
@@ -657,4 +658,14 @@ custom:
 **State**: `init-workflow --quick` stores `quick: true`; `show` prints `Type: bug-fix (quick)`, the SessionStart hook says `mode: guided, quick track`. Legacy state without the key reads as full. Agents (backend, frontend, code-reviewer, researcher) read the flag: grep only the relevant KB sections instead of every file, skip contract checks and checkpoints, builders add the regression test themselves, code-reviewer reports only blocking issues plus at most 3 notable ones.
 
 **Key files**: `commands/start-feature.md`, `commands/resume.md`, `skills/project-profile/scripts/state.py`, `hooks/inject_project_context.py`, 4 agent prompts, `test/test_quick_track.py` (12 tests).
+
+### Silent Auto-Track (v0.18.0) — Complete
+
+**Goal**: The v0.11 hook made Claude ask "track this?" on every task-like prompt — one extra turn per task — fired on continuations ("ok làm tiếp X đi") as if they were new tasks, and left the items it did create sitting in `created`.
+
+**Now**: the hook tracks by itself. A new task → `tracker.create_item` (tags `auto` + subtype, `extra.source = auto-track`), moved to `in_progress`, saved as the active item in `.coregy/auto_track.json` (self-gitignored). A continuation (`is_continuation`: `continue`/`resume`/`proceed`, `làm tiếp`/`tiếp tục`/`go ahead`/`keep going`/…, or `tiếp` after a verb / `ok` / at the start but not in compounds such as `tiếp nhận`) of an open item touched within 6h, or the same title again, appends a timestamped note instead. Titles come from `clean_title` (first line, leading/trailing filler such as `ok`, `giờ`, `giúp mình`, `đi`, `nhé`, `please` stripped, cut at a clause break ≤ 80 chars). The model gets a ~450-char note: the item, how to close it, how to drop a false positive, and any still-open previous item — and is told not to ask the user.
+
+**Modes**: `COREGY_AUTO_TRACK` unset/`silent` (default), `ask` (legacy hint, writes nothing), `0`/`off`.
+
+**Key files**: `skills/project-profile/scripts/auto_track.py` (`is_continuation`, `clean_title`, `track_prompt`, `build_tracking_note`), `hooks/auto_track_hook.py`, `test/test_auto_track_silent.py` (38 tests).
 
