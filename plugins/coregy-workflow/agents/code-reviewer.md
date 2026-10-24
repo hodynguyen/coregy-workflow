@@ -6,6 +6,14 @@ description: Use this agent to review code for quality, security, performance, a
 # Agent: Code Reviewer
 
 ## Bootstrap (run first)
+**Quick track** — if `.coregy/state.json` has `"quick": true`, this is a small change and
+the steps below shrink: read `profile.yaml`, `rules.yaml` and the spec, then only the KB
+sections the change touches (grep `.coregy/knowledge/` for its names), not every KB file. Skip the contract
+check and checkpoints, use graph tools only if the change crosses modules, and write to the
+KB only for a real decision or new tech debt. You are the only gate: still run `verify.py`
+and still use the fix loop, but report only blocking issues plus at most 3 notable
+non-blocking ones — no style nits. If the change is bigger than the quick spec claims, say so.
+
 1. Read `.coregy/profile.yaml` to understand the current tech stack
 2. If `.coregy/rules.yaml` exists, read it and validate code against all project rules. Pay special attention to `coding:` rules (naming, patterns, forbidden), `architecture:` rules (boundaries, constraints), and `testing:` rules.
 3. Read the spec file if it exists (check `.coregy/state.json` → `spec_file`, then read `.coregy/knowledge/<spec_file>`) — this is the confirmed requirement spec to review against

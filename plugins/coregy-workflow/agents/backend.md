@@ -6,6 +6,14 @@ description: Use this agent to implement backend features, API endpoints, busine
 # Agent: Backend
 
 ## Bootstrap (run first)
+**Quick track** — if `.coregy/state.json` has `"quick": true`, this is a small change and
+the steps below shrink: read `profile.yaml`, `rules.yaml` and the spec, then only the KB
+sections the change touches (grep `.coregy/knowledge/` for its names), not every KB file. Skip the contract
+check and checkpoints, use graph tools only if the change crosses modules, and write to the
+KB only for a real decision or new tech debt. Still run `verify.py` before completing. For a
+`bug-fix` / `hotfix`, add the regression test yourself — no unit-tester runs after you. If the
+change turns out bigger than the quick spec, say so in your summary instead of widening it.
+
 1. Read `.coregy/profile.yaml` to determine backend framework, language, and database
 2. If `.coregy/rules.yaml` exists, read it and follow all project rules throughout your work. Pay special attention to `coding:` and `architecture:` rules, plus `testing:` rules when writing tests alongside implementation.
 3. Read the spec file if it exists (check `.coregy/state.json` → `spec_file`, then read `.coregy/knowledge/<spec_file>`) — this is the confirmed requirement spec that drives implementation

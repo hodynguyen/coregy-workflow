@@ -57,7 +57,7 @@ def _make_slug(text):
 
 def init_workflow(cwd, feature, feature_type, phases, spec_confirmed=False,
                   spec_file=None, log_file=None, execution_mode="guided",
-                  max_fix_rounds=DEFAULT_MAX_FIX_ROUNDS):
+                  max_fix_rounds=DEFAULT_MAX_FIX_ROUNDS, quick=False):
     """Create .coregy/state.json with initial workflow state.
 
     Args:
@@ -71,6 +71,8 @@ def init_workflow(cwd, feature, feature_type, phases, spec_confirmed=False,
         log_file: KB filename for the feature log (auto-generated if None).
         execution_mode: One of "auto", "guided", "manual".
         max_fix_rounds: Fix rounds a gate may request before escalating.
+        quick: Quick track -- a short agent sequence for a small change; agents
+               read state["quick"] and keep their bootstrap and output light.
 
     Returns:
         The created state dict.
@@ -100,6 +102,7 @@ def init_workflow(cwd, feature, feature_type, phases, spec_confirmed=False,
         "type": feature_type,
         "status": "in_progress",
         "execution_mode": execution_mode,
+        "quick": bool(quick),
         "spec_confirmed": spec_confirmed,
         "spec_file": spec_file,
         "log_file": log_file,
@@ -1021,9 +1024,10 @@ def _format_state_text(state):
     lines.append("Workflow: %s" % state.get("workflow_id", ""))
     lines.append("Feature:  %s" % state.get("feature", ""))
     lines.append(
-        "Type:     %s   Status: %s   Mode: %s"
+        "Type:     %s%s   Status: %s   Mode: %s"
         % (
             state.get("type", "unknown"),
+            " (quick)" if state.get("quick") else "",
             state.get("status", "unknown"),
             state.get("execution_mode", "guided"),
         )
@@ -1113,6 +1117,8 @@ def _build_parser():
                         help="Do not create the feature log file")
     p_init.add_argument("--force", action="store_true",
                         help="Overwrite an in-progress workflow")
+    p_init.add_argument("--quick", action="store_true",
+                        help="Quick track: short agent sequence, light agent bootstrap")
     p_init.add_argument("--max-fix-rounds", type=int, default=DEFAULT_MAX_FIX_ROUNDS,
                         help="Fix rounds a gate may request before escalating "
                              "(default: %d)" % DEFAULT_MAX_FIX_ROUNDS)
@@ -1211,6 +1217,7 @@ def _dispatch(args, cwd, json_mode):
             log_file=args.log_file,
             execution_mode=args.mode,
             max_fix_rounds=args.max_fix_rounds,
+            quick=args.quick,
         )
         if not args.no_log:
             create_feature_log(cwd, args.feature, args.feature_type,

@@ -6,6 +6,13 @@ description: Use this agent to research external documentation, best practices, 
 # Agent: Researcher
 
 ## Bootstrap (run first)
+**Quick track** — if `.coregy/state.json` has `"quick": true`, this is a small change and
+the steps below shrink: read `profile.yaml`, `rules.yaml` and the spec, then only the KB
+sections the change touches (grep `.coregy/knowledge/` for its names), not every KB file. Skip the contract
+check and checkpoints, use graph tools only if the change crosses modules, and write to the
+KB only for a real decision or new tech debt. Answer the spike's question directly — a short
+recommendation with sources, not a full comparison report.
+
 1. Read `.coregy/profile.yaml` to understand the current tech stack
 2. If `.coregy/rules.yaml` exists, read it and ensure research recommendations align with project rules. Pay special attention to `architecture:` and `workflow:` rules.
 3. Read `.coregy/knowledge/` files for existing context and decisions

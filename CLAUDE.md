@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project Overview
 
-This is the **Coregy Workflow** plugin for Claude Code — a project-aware development workflow system with 9 specialized AI agents. Current version: v0.16.0. Full documentation is in `docs/` (PROPOSAL, ARCHITECTURE, ROADMAP, USER_GUIDE).
+This is the **Coregy Workflow** plugin for Claude Code — a project-aware development workflow system with 9 specialized AI agents. Current version: v0.17.0. Full documentation is in `docs/` (PROPOSAL, ARCHITECTURE, ROADMAP, USER_GUIDE).
 
 The plugin provides:
 - Auto-detection of project tech stacks (generates `.coregy/profile.yaml`)
@@ -17,6 +17,7 @@ The plugin provides:
 - Team roles & permissions via `.coregy/team.yaml`
 - Fix loop — gate agents (reviewer, verifier, testers) send blocking issues back to BUILD via `state.py request-fixes` and re-check, capped by `max_fix_rounds`; escalates to the user when it stalls
 - Real verification (`verify.py`) — resolves the project's own lint / typecheck / test commands (override `.coregy/verify.yaml`) and runs them; builders, testers, reviewers and the final workflow step gate on the exit codes
+- Quick track (`/start-feature --quick`, or suggested for small changes) — builder → code-reviewer, no discovery, compact spec, lighter agents; separate from the execution mode
 - Workflow state machine (`.coregy/state.json`) with spec-driven development and 3 execution modes: `auto` (full auto, no interaction), `guided` (interactive discovery, auto execution), `manual` (pause between agents)
 - Interaction tracker (`tracker.py`, `.coregy/tracker.db`) with agent checkpoints for surviving context limit interruptions
 - Auto-track (`auto_track.py`, `auto_track_hook.py`) — `UserPromptSubmit` hook detects task intent in user prompts (EN + VI) and hints Claude to create a tracker item when work happens outside `/start-feature`
@@ -109,7 +110,7 @@ plugins/coregy-workflow/
 ## Testing
 
 ```bash
-# Run all tests (948 tests across 36 test files)
+# Run all tests (960 tests across 37 test files)
 python3 -m unittest discover -s test -v
 
 # Tests cover: per-language detectors, monorepo, devops, serializer, quality gate, KB sync,
@@ -151,3 +152,4 @@ python3 -m unittest discover -s test -v
 - **v0.14.0 (Rename Hody → Coregy)**: Complete — Plugin renamed `hody-workflow@hody` → `coregy-workflow@coregy` (commands `/coregy-workflow:*`, data dir `.coregy/`, env vars `COREGY_*`, KB sync branch `coregy-knowledge`, repo `hodynguyen/coregy-workflow`). Legacy `HODY_*` env vars still read as a fallback. New `migrate.py` + `/coregy-workflow:migrate` (16 commands) moves `.hody/` → `.coregy/`, rewrites path tokens, `.gitignore` and the `enabledPlugins` key; refuses on conflict, never deletes. SessionStart hook auto-migrates and tells the model. 854 tests total.
 - **v0.15.0 (Fix Loop)**: Complete — VERIFY is no longer a straight line. A gate agent (`code-reviewer`, `spec-verifier`, `unit-tester`, `integration-tester`) with blocking issues calls `state.py request-fixes <gate> --issue ...`, which reopens the BUILD fixer(s) and the gate so `next-agent` walks BUILD → gate again. Escalates (nothing reopened, `next-agent --json` → `escalation`) after `max_fix_rounds` (default 3, `init-workflow --max-fix-rounds`) or when a round has no fewer issues than the last; the user accepts (`complete-agent`), forces a round (`--force-round`) or aborts — in every mode. Re-runs tracked by `log_index` into `agent_log`, so a `complete-agent` right after `request-fixes` is a no-op. `start-agent` returns `fix_round`; rounds logged to the feature log. start-feature/resume now loop on `next-agent`. 892 tests total.
 - **v0.16.0 (Real Verification)**: Complete — New `verify.py` (`detect`/`run`/`last`/`init`) resolves lint / typecheck / test commands from `.coregy/verify.yaml` > Makefile > `profile.yaml` `testing.command` > package.json / pyproject / go.mod / Cargo.toml / Maven / Gradle / .NET / Ruby / PHP (plus profile `frontend.dir`/`backend.dir`), runs them with `CI=1` and per-check timeouts, writes `.coregy/verify-last.json` (self-gitignored) with `passed`, `verified`, output tails and fix-loop-ready `issues[]`. `run --reuse` skips when the git fingerprint (excluding `.coregy/`) is unchanged. Builders must pass before completing; testers and reviewers turn failures into `request-fixes`; start-feature/resume run a final check before `complete`; `/init` shows detected commands. `request-fixes` on an already-completed gate reopens its last occurrence. 948 tests total.
+- **v0.17.0 (Quick Track)**: Complete — Track (`full`/`quick`) is separate from mode. `/start-feature --quick` skips discovery in every mode, writes a compact spec, runs `BUILD: [builder] → VERIFY: [code-reviewer]` (tech-spike → researcher) with `--max-fix-rounds 2`; small changes get quick suggested (auto takes it, guided asks, manual never; `--full` opts out). `init-workflow --quick` stores `quick: true`, shown by `show` and the SessionStart hook; backend/frontend/code-reviewer/researcher read it to keep bootstrap light (relevant KB only, no contracts/checkpoints), builders add regression tests, reviewer reports blockers + ≤3 notes. Outgrowing quick → abort and restart `--full`. 960 tests total.

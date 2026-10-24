@@ -105,6 +105,9 @@ If a checkpoint exists for the next agent, display it:
 
 The spec was not finalized before the session was interrupted. Continue the discovery process:
 
+> **Quick track** (`"quick": true` in state.json): do not ask discovery questions — write the
+> compact quick spec from start-feature (goal + 2-5 acceptance criteria) and confirm it per mode.
+
 - Read any partial spec or notes from KB
 - Re-read the feature description and type from state.json
 - Resume asking clarifying questions from where discovery left off
@@ -132,6 +135,9 @@ If `$ARGUMENTS` is `skip <agent>`, mark it skipped before computing the next age
 ```bash
 python3 ${CLAUDE_PLUGIN_ROOT}/skills/project-profile/scripts/state.py skip-agent <agent> --cwd .
 ```
+
+Agents read `quick` from state.json themselves; keep the quick track's lighter reporting too
+(one line per agent, final summary without the KB section unless something changed).
 
 b. **Read the spec and log**: Read `.coregy/knowledge/<spec_file>` for the confirmed spec and `.coregy/knowledge/<log_file>` for work already done by previous agents.
 

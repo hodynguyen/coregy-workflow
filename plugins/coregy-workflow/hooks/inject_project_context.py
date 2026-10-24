@@ -172,6 +172,7 @@ def main():
                     spec_confirmed = state.get("spec_confirmed", False)
                     spec_status = "spec confirmed" if spec_confirmed else "spec pending"
                     exec_mode = state.get("execution_mode", "guided")
+                    mode_label = exec_mode + (", quick track" if state.get("quick") else "")
 
                     # Find next agent
                     next_info = None
@@ -189,7 +190,7 @@ def main():
                         system_msg += (
                             f" | Active workflow: '{feature}'"
                             f" — {spec_status}, discovery incomplete"
-                            f" (mode: {exec_mode})"
+                            f" (mode: {mode_label})"
                             f". Use /coregy-workflow:resume to continue discovery."
                         )
                     elif next_info:
@@ -201,7 +202,7 @@ def main():
                         system_msg += (
                             f" | Active workflow: '{feature}'"
                             f" — {spec_status}, next: {next_info[1]}"
-                            f" ({next_info[0]} phase, mode: {exec_mode})"
+                            f" ({next_info[0]} phase, mode: {mode_label})"
                             f". Use /coregy-workflow:resume to {resume_hint}."
                         )
                     else:

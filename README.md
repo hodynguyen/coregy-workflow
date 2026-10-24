@@ -2,7 +2,7 @@
 
 > A project-aware development workflow plugin for Claude Code with 9 specialized AI agents.
 
-**Version**: v0.16.0 — All 6 phases complete
+**Version**: v0.17.0 — All 6 phases complete
 
 **Documentation**: [User Guide](./docs/USER_GUIDE.md) | [Architecture](./docs/ARCHITECTURE.md) | [Proposal](./docs/PROPOSAL.md) | [Roadmap](./docs/ROADMAP.md)
 
@@ -15,6 +15,7 @@
 - **Knowledge base** — 6 persistent markdown files with YAML frontmatter, `_index.json` indexing, and auto-archival
 - **9 specialized agents** across 4 groups: THINK (researcher, architect), BUILD (frontend, backend), VERIFY (code-reviewer, spec-verifier, unit-tester, integration-tester), SHIP (devops)
 - **Workflow state machine** — `.coregy/state.json` tracks feature progress across sessions with `/resume`
+- **Quick track** — `/start-feature --quick` (or suggested for small changes) runs builder → code-reviewer with no discovery questions and a compact spec
 - **Fix loop** — reviewers, verifiers and testers send blocking issues back to the BUILD agents and re-check, up to 3 rounds; stops and asks you when it stalls
 - **Real verification** — `verify.py` finds the project's own lint / typecheck / test commands and runs them; agents gate on exit codes, not on their own say-so
 - **Agent contracts** — 6 typed handoff schemas for validated inter-agent communication
@@ -106,7 +107,7 @@ my-app/
 | Command | Description |
 |---------|-------------|
 | `/coregy-workflow:init` | Detect stack, create profile + populate knowledge base |
-| `/coregy-workflow:start-feature` | Start guided feature development workflow |
+| `/coregy-workflow:start-feature` | Start guided feature development workflow (`--quick` for small changes) |
 | `/coregy-workflow:status` | View profile + KB summary + workflow progress |
 | `/coregy-workflow:resume` | Resume an interrupted workflow from last checkpoint |
 | `/coregy-workflow:refresh` | Re-detect stack, update profile.yaml (`--deep` for dependency analysis) |

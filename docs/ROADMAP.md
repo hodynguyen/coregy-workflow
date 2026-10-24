@@ -2,7 +2,7 @@
 
 > Single source of truth for all phase tracking and future plans.
 
-**Current version**: v0.16.0
+**Current version**: v0.17.0
 
 ---
 
@@ -27,6 +27,7 @@
 | — | Rename Hody → Coregy | Complete | v0.14.0 |
 | — | Fix Loop | Complete | v0.15.0 |
 | — | Real Verification | Complete | v0.16.0 |
+| — | Quick Track | Complete | v0.17.0 |
 
 ---
 
@@ -646,4 +647,14 @@ custom:
 **Wiring**: builders run it before completing (fix and retry up to 3 times, never report failing work as done); testers run `--only test` and route implementation bugs into the fix loop; code-reviewer / spec-verifier start from `run --reuse` and treat failed checks as blocking; start-feature / resume run a final `run --reuse` before `complete` and hand failures to the last VERIFY agent's fix loop. `/init` shows the detected commands. `request-fixes` now reopens a gate's *last* occurrence when it already completed (refactor's VERIFY code-reviewer, not the THINK assessment).
 
 **Key files**: `skills/project-profile/scripts/verify.py`, `commands/start-feature.md`, `commands/resume.md`, `commands/init.md`, 6 agent prompts, `test/test_verify.py` (49 tests), `test/test_cli_surface.py` (`TestVerifyCli`).
+
+### Quick Track (v0.17.0) — Complete
+
+**Goal**: `new-feature` runs 7-8 agents; that is too heavy for the everyday small change. The quick track keeps the guarantees that matter (real checks, a review, the fix loop) and drops the rest.
+
+**Track vs mode**: the mode (`auto`/`guided`/`manual`) decides how much the user is asked; the track (`full`/`quick`) decides how many agents run. `--quick` → no discovery questions in any mode, compact spec (goal, where, 2-5 acceptance criteria), phases `BUILD: [builder] → VERIFY: [code-reviewer]` (`tech-spike` → researcher only), `--max-fix-rounds 2`. Without a flag, small changes (bug-fix / hotfix / ui-change / local refactor, ~3 files, no new data model or API) get quick suggested — auto takes it, guided asks, manual never. `--full` opts out. Outgrowing quick → abort and restart with `--full`.
+
+**State**: `init-workflow --quick` stores `quick: true`; `show` prints `Type: bug-fix (quick)`, the SessionStart hook says `mode: guided, quick track`. Legacy state without the key reads as full. Agents (backend, frontend, code-reviewer, researcher) read the flag: grep only the relevant KB sections instead of every file, skip contract checks and checkpoints, builders add the regression test themselves, code-reviewer reports only blocking issues plus at most 3 notable ones.
+
+**Key files**: `commands/start-feature.md`, `commands/resume.md`, `skills/project-profile/scripts/state.py`, `hooks/inject_project_context.py`, 4 agent prompts, `test/test_quick_track.py` (12 tests).
 

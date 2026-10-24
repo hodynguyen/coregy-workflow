@@ -1,6 +1,6 @@
 ---
-description: Start a spec-driven feature development workflow. Supports --auto (skip discovery, full auto), --manual (pause between agents), or default guided mode.
-argument-hint: "[--auto|--manual] [feature description, e.g. 'add OAuth2 login, focus on security']"
+description: Start a spec-driven feature development workflow. Supports --auto (skip discovery, full auto), --manual (pause between agents), or default guided mode, plus --quick (short agent sequence for small changes) or --full.
+argument-hint: "[--auto|--manual] [--quick|--full] [feature description, e.g. 'add OAuth2 login, focus on security']"
 ---
 
 # /coregy-workflow:start-feature
@@ -28,9 +28,38 @@ Strip the mode flag from the remaining text before treating it as the feature de
 | **guided** (default) | Interactive — ask user questions | User confirms | Run all agents without stopping |
 | **manual** | Interactive — ask user questions | User confirms | Pause between each agent for review |
 
+### Track: quick or full
+
+The track is separate from the mode: the mode decides how much the user is asked, the
+track decides how many agents run. Parse (case-insensitive) and strip:
+- `--quick` or starts with `quick:` → **quick** track
+- `--full` → **full** track, and never suggest quick
+- Neither → **full**, but see "Suggesting quick" below
+
+| Track | Discovery | Spec | Agents | Fix rounds |
+|-------|-----------|------|--------|------------|
+| **full** | Per mode | Full spec | Sequence for the type (see "Agent Sequence by Feature Type") | 3 |
+| **quick** | Skipped — never ask discovery questions | Compact spec (goal + 2-5 acceptance criteria) | BUILD agent(s) → `code-reviewer` (see "Quick sequence") | 2 |
+
+In quick, the confirmation step still follows the mode: `auto` auto-confirms, `guided` and
+`manual` show the compact spec and wait for "ok". Real checks still run — the builder must
+pass `verify.py` and the final verification still gates completion.
+
+**Suggesting quick** — when no track flag was given, the task is *small* if all hold:
+- type is `bug-fix`, `hotfix`, `ui-change` or a local `refactor` (never `new-feature` or
+  `api-endpoint` — those can still be forced with `--quick`);
+- the description points at one behaviour or one place (a file, a component, an endpoint);
+- no new data model, no new public API, no change spanning frontend and backend;
+- you expect it to touch roughly 3 files or fewer.
+
+Then: in `auto` mode, take the quick track and say so in one line
+(`⚡ Small change → quick track (builder → review). Re-run with --full for the whole workflow.`);
+in `guided` mode, open with that same line and ask "quick or full?" instead of the discovery
+questions — on "full", continue with normal discovery; in `manual` mode, never suggest.
+
 ### Feature Description
 
-Use the remaining text (after stripping mode flag) to:
+Use the remaining text (after stripping mode and track flags) to:
 - Pre-fill step 2 (feature description) so you can skip asking if the description is clear enough
 - Apply focus areas (e.g. "focus on security" → emphasize code-reviewer + spec-verifier)
 - Narrow scope (e.g. "only backend" → skip frontend agent in BUILD)
@@ -62,6 +91,8 @@ DISCOVERY → SPEC CONFIRMATION → AUTO-EXECUTION
 1. **Check initialization**: Verify `.coregy/profile.yaml` exists. If not, run `/coregy-workflow:init` first.
 
 2. **Read project context**: Read `.coregy/profile.yaml` and all `.coregy/knowledge/` files to understand the current project state.
+   **Quick track**: read only `profile.yaml`, `rules.yaml` (if present) and the KB sections
+   the task touches — grep `.coregy/knowledge/` for the task's keywords — not every KB file.
 
 3. **Gather feature description**: If not provided in arguments, ask the user to describe the feature. (In `auto` mode, a description MUST be provided in arguments.)
 
@@ -110,11 +141,29 @@ Present ALL questions at once. Let the user answer in any order, partially, or a
 
 6. **Iterate until clear**: If answers are vague or raise new questions, ask follow-ups. But always batch questions — never ask one at a time. Continue until you have enough information to write a spec.
 
+**If the track is quick**: Skip steps 5-6 in every mode, and go straight to the compact spec.
+
 **If mode is `auto`**: Skip steps 5-6 entirely. Instead, use the feature description from arguments combined with existing knowledge base context (architecture.md, api-contracts.md, decisions.md) to generate the spec directly. Make reasonable assumptions based on the codebase. Do NOT ask any questions — proceed straight to Phase B.
 
 ### Phase B: Spec Confirmation
 
-7. **Write the spec**: Synthesize all discovery answers into a structured spec document. Present it to the user:
+7. **Write the spec**: Synthesize all discovery answers into a structured spec document. Present it to the user.
+
+   **Quick track** — write only this, and keep it under 15 lines:
+
+```
+Quick Spec: [title]
+
+Goal: [one sentence]
+Where: [files / component / endpoint, as far as known]
+Acceptance:
+  - [ ] [observable criterion]
+  - [ ] [observable criterion]
+Out of scope: [one line, optional]
+Agents: [backend|frontend] → code-reviewer
+```
+
+   Full track:
 
 ```
 Feature Spec: [title]
@@ -199,6 +248,9 @@ Do **not** hand-write either file.
   the sequence from "Agent Sequence by Feature Type" below.
 - `--max-fix-rounds <n>` (default 3) caps how often each gate may send work back to BUILD.
   Pass it only when the user asks for a different limit.
+- **Quick track**: add `--quick --max-fix-rounds 2`, and use the quick sequence for
+  `--phases`, e.g. `'{"BUILD":["backend"],"VERIFY":["code-reviewer"]}'`. `--quick` is what
+  tells every agent (via `state.json` → `quick: true`) to keep its bootstrap and output light.
 - Exit 1 with "Active workflow ... in progress" means a workflow is already running —
   offer `/coregy-workflow:resume` rather than passing `--force`, which destroys it.
 
@@ -338,6 +390,26 @@ one call. Then:
 | `deployment` | devops |
 | `hotfix` | frontend or backend → unit-tester → devops |
 
+### Quick sequence
+
+| Type | Phases |
+|------|--------|
+| `bug-fix`, `hotfix`, `refactor` | `{"BUILD":["<backend or frontend>"],"VERIFY":["code-reviewer"]}` |
+| `ui-change` | `{"BUILD":["frontend"],"VERIFY":["code-reviewer"]}` |
+| `api-endpoint` | `{"BUILD":["backend"],"VERIFY":["code-reviewer"]}` |
+| `new-feature` | `{"BUILD":["<frontend and/or backend>"],"VERIFY":["code-reviewer"]}` |
+| `tech-spike` | `{"THINK":["researcher"]}` |
+| `deployment` | `{"SHIP":["devops"]}` (same as full) |
+
+No unit-tester runs, so for a `bug-fix` / `hotfix` the builder adds the regression test
+itself. `hotfix` skips devops in quick — tell the user to ship it.
+
+**Outgrowing quick**: if the builder or code-reviewer reports that the change is bigger than
+the quick spec (new data model, several components, design decision needed), stop and ask:
+`↗ This is bigger than a quick change — switch to the full workflow?` On yes:
+`state.py abort --cwd .`, then start over with `--full` and the same description (the work
+already done stays in the tree).
+
 ## Output
 
 ### During Discovery
@@ -379,6 +451,7 @@ Log:  .coregy/knowledge/log-<feature>.md
 
 ## Notes
 
+- **Two tracks**: `full` (default) runs the whole agent sequence; `quick` (`--quick`, or suggested for small changes) runs builder → code-reviewer with no discovery, a compact spec and lighter agents
 - **Three execution modes**: `auto` (no interaction), `guided` (interactive discovery, auto execution), `manual` (interactive discovery, pause between agents)
 - **`auto` mode** skips discovery and spec confirmation — best for well-described features or simple tasks
 - **`guided` mode** (default) iterates with the user until spec is clear, then runs agents without interruption

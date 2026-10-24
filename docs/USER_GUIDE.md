@@ -191,6 +191,19 @@ Describe your feature → plugin classifies it (new-feature, bug-fix, refactor, 
 | Guided | `/start-feature add OAuth login` | Interactive discovery → confirm spec → auto-run agents |
 | Manual | `/start-feature --manual add OAuth login` | Interactive discovery → confirm spec → pause between agents |
 
+**Two tracks** (independent of the mode):
+
+| Track | Command | Behavior |
+|-------|---------|----------|
+| Full (default) | `/start-feature add OAuth login` | Whole agent sequence for the type (below) |
+| Quick | `/start-feature --quick fix typo in signup error` | No discovery questions, compact spec (goal + acceptance), builder → code-reviewer, 2 fix rounds, lighter agent bootstrap |
+
+Without a flag, a small change (a bug-fix, hotfix, UI tweak or local refactor in about 3 files
+or fewer, no new data model or API) gets quick suggested: `auto` takes it and says so, `guided`
+asks "quick or full?" instead of the discovery questions, `manual` never suggests it. `--full`
+turns the suggestion off. Quick still runs real checks (`verify.py`) and the final verification.
+If the change turns out bigger, the workflow offers to switch to full.
+
 ```
 THINK:  researcher → architect
 BUILD:  frontend + backend (parallel)
